@@ -64,6 +64,10 @@ interface DataStore {
 
   addExpense: (expenseData: Omit<Expense, 'id' | 'created_at'>) => Promise<void>;
 
+  addServiceCategory: (name: string, description?: string) => Promise<void>;
+  addProductCategory: (name: string, description?: string) => Promise<void>;
+  addExpenseCategory: (name: string) => Promise<void>;
+
   // Search & Filtering
   searchVehicles: (query: string) => Vehicle[];
   getVehicleById: (id: string) => Vehicle | undefined;
@@ -495,6 +499,63 @@ export const useDataStore = create<DataStore>((set, get) => ({
 
       if (data) {
         await get().fetchInitialData();
+      }
+    }
+  },
+
+  addServiceCategory: async (name, description) => {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('service_categories')
+        .insert([{ name, description: description || null, is_active: true }])
+        .select('*')
+        .single();
+
+      if (error) {
+        console.error('Failed to add service category:', error);
+        throw new Error(error.message);
+      }
+
+      if (data) {
+        set({ serviceCategories: [...get().serviceCategories, data] });
+      }
+    }
+  },
+
+  addProductCategory: async (name, description) => {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('product_categories')
+        .insert([{ name, description: description || null, is_active: true }])
+        .select('*')
+        .single();
+
+      if (error) {
+        console.error('Failed to add product category:', error);
+        throw new Error(error.message);
+      }
+
+      if (data) {
+        set({ productCategories: [...get().productCategories, data] });
+      }
+    }
+  },
+
+  addExpenseCategory: async (name) => {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('expense_categories')
+        .insert([{ name, is_active: true }])
+        .select('*')
+        .single();
+
+      if (error) {
+        console.error('Failed to add expense category:', error);
+        throw new Error(error.message);
+      }
+
+      if (data) {
+        set({ expenseCategories: [...get().expenseCategories, data] });
       }
     }
   },
