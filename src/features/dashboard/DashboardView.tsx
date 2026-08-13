@@ -1,0 +1,248 @@
+import React from 'react';
+import { useDataStore } from '../../stores/useDataStore';
+import { useUIStore } from '../../stores/useUIStore';
+import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+import { PlateBadge } from '../../components/ui/PlateBadge';
+import { PriceDisplay } from '../../components/ui/PriceDisplay';
+import {
+  TrendingUp,
+  Car,
+  Receipt,
+  PlusCircle,
+  AlertTriangle,
+  Clock,
+  Sparkles,
+  ArrowUpRight,
+  PackageCheck,
+} from 'lucide-react';
+import { formatArabicDate } from '../../lib/utils';
+
+export const DashboardView: React.FC = () => {
+  const { sales, vehicles, products } = useDataStore();
+  const { setActiveTab, setActiveReceiptSaleId, setReceiptModalOpen } = useUIStore();
+
+  // Metrics Calculations
+  const todaySales = sales.slice(0, 10);
+  const totalTodayRevenue = sales.reduce((sum, s) => sum + s.total, 0);
+  const totalVehiclesCount = vehicles.length;
+  const totalSalesCount = sales.length;
+  const avgTicket = totalSalesCount > 0 ? totalTodayRevenue / totalSalesCount : 0;
+
+  // Low stock products
+  const lowStockProducts = products.filter((p) => p.current_stock <= p.minimum_stock);
+
+  return (
+    <div className="space-[#0f172a] space-y-6">
+      {/* Welcome Banner */}
+      <div className="flex items-center justify-between gap-4 bg-gradient-to-l from-blue-600 via-blue-700 to-indigo-800 text-white p-5 sm:p-6 rounded-3xl shadow-lg shadow-blue-600/15 relative overflow-hidden">
+        <div className="relative z-10">
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+            أهلاً بك في <span className="whitespace-nowrap">V8&nbsp;STANCE</span>
+          </h2>
+        </div>
+
+        <div className="relative z-10 shrink-0">
+          <Button
+            size="md"
+            onClick={() => setActiveTab('pos')}
+            className="bg-white hover:bg-slate-50 text-blue-700 font-bold shadow-md hover:shadow-lg border-0 px-4 sm:px-5"
+            icon={<PlusCircle className="w-5 h-5 text-blue-600" />}
+          >
+            عملية جديدة
+          </Button>
+        </div>
+
+        {/* Decorative background circle */}
+        <div className="absolute -left-12 -bottom-12 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+      </div>
+
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* KPI 1 */}
+        <Card className="p-5 border-slate-100 hover:border-blue-200 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">مبيعات اليوم</span>
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <PriceDisplay amount={totalTodayRevenue} size="xl" />
+            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 mt-1">
+              <ArrowUpRight className="w-3.5 h-3.5" />
+              <span>+12.5% مقارنة بالأمس</span>
+            </div>
+          </div>
+        </Card>
+
+        {/* KPI 2 */}
+        <Card className="p-5 border-slate-100 hover:border-blue-200 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">السيارات المغسولة</span>
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+              <Car className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight">
+              {totalVehiclesCount}
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">إجمالي السيارات المسجلة</p>
+          </div>
+        </Card>
+
+        {/* KPI 3 */}
+        <Card className="p-5 border-slate-100 hover:border-blue-200 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">عدد العمليات اليوم</span>
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+              <Receipt className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight">
+              {totalSalesCount}
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium mt-1">فواتير مدفوعة بالكامل</p>
+          </div>
+        </Card>
+      </div>
+
+      {/* Main Grid Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Transactions List (2 columns wide) */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-blue-600" />
+                <CardTitle>أحدث عمليات الغسيل اليوم</CardTitle>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setActiveTab('sales')}
+                className="text-xs text-blue-600 hover:text-blue-700 font-bold"
+              >
+                عرض كل الفواتير ({sales.length})
+              </Button>
+            </CardHeader>
+
+            <div className="space-y-3">
+              {sales.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-xs">
+                  لا توجد عمليات اليوم، ابدأ عملية جديدة الآن!
+                </div>
+              ) : (
+                sales.map((sale) => (
+                  <div
+                    key={sale.id}
+                    onClick={() => {
+                      setActiveReceiptSaleId(sale.id);
+                      setReceiptModalOpen(true);
+                    }}
+                    className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-blue-200 hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer group"
+                  >
+                    <div className="flex flex-col gap-1.5 min-w-0">
+                      {/* السطر الأول: رقم السيارة وبجواره رقم التسجيل */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <PlateBadge
+                          plateDisplay={sale.vehicle?.plate_display || 'س ب ج 1234'}
+                          size="sm"
+                        />
+                        <Badge variant="neutral" size="sm">
+                          {sale.invoice_number}
+                        </Badge>
+                      </div>
+
+                      {/* السطر الثاني: اسم العميل */}
+                      <div className="text-xs font-bold text-slate-900 flex items-center">
+                        <span className="text-slate-400 font-normal text-[11px] ml-1">اسم العميل:</span>
+                        {sale.vehicle?.driver_name || 'سائق'}
+                      </div>
+
+                      {/* السطر الثالث: الخدمات المقدمة */}
+                      <div className="text-[11px] text-slate-600 font-medium line-clamp-1">
+                        <span className="text-slate-400 font-normal ml-1">الخدمات:</span>
+                        {sale.items?.map((i) => `${i.item_name_snapshot} (${i.quantity})`).join(' • ')}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100">
+                      <div className="text-left sm:text-right">
+                        <PriceDisplay amount={sale.total} size="sm" />
+                        <span className="block text-[10px] text-slate-400 font-medium">
+                          {formatArabicDate(sale.created_at)}
+                        </span>
+                      </div>
+                      <Badge
+                        variant={sale.payment_method === 'CASH' ? 'green' : 'blue'}
+                        size="sm"
+                      >
+                        {sale.payment_method === 'CASH' ? 'نقداً' : 'إلكتروني'}
+                      </Badge>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {/* Sidebar Alerts & Quick Actions (1 column wide) */}
+        <div className="space-y-6">
+          {/* Inventory Alerts Card */}
+          <Card className="border-amber-100 bg-gradient-to-br from-white to-amber-50/30">
+            <CardHeader className="border-amber-100">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                <CardTitle className="text-amber-900">تنبيهات المخزون</CardTitle>
+              </div>
+              <Badge variant="amber" size="sm">
+                {lowStockProducts.length} منتجات
+              </Badge>
+            </CardHeader>
+
+            {lowStockProducts.length === 0 ? (
+              <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 p-3 rounded-xl border border-emerald-200/60 font-semibold">
+                <PackageCheck className="w-4 h-4 shrink-0" />
+                <span>جميع المنتجات متوفرة بكميات ممتازة!</span>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {lowStockProducts.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => setActiveTab('inventory')}
+                    className="flex items-center justify-between p-3 rounded-xl bg-white border border-amber-200/80 shadow-2xs hover:bg-amber-50/50 transition-colors cursor-pointer"
+                  >
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-900">{p.name}</h5>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        الحد الأدنى: {p.minimum_stock} {p.unit}
+                      </span>
+                    </div>
+                    <Badge variant={p.current_stock === 0 ? 'red' : 'amber'} size="sm">
+                      {p.current_stock === 0 ? '🔴 نافد' : `🟡 المتاح: ${p.current_stock}`}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveTab('inventory')}
+              className="w-full mt-4 text-xs font-bold border-amber-200 text-amber-900 hover:bg-amber-100/50"
+            >
+              إدارة وتزويد المخزون
+            </Button>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};

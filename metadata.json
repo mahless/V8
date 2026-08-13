@@ -1,0 +1,6 @@
+{
+  "name": "V8 STANCE",
+  "description": "نظام إدارة V8 STANCE للخدمات والسيارات والمبيعات (POS)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
