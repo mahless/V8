@@ -58,29 +58,36 @@ export const InventoryView: React.FC = () => {
     return matchesCategory && matchesSearch;
   });
 
-  const handleCreateProduct = (e: React.FormEvent) => {
+  const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prodName.trim()) {
       showToast('اسم المنتج مطلوب', 'يرجى كتابة اسم المنتج', 'error');
       return;
     }
 
-    addProduct({
-      name: prodName.trim(),
-      sku: prodSku.trim() || `SKU-${Date.now().toString().slice(-4)}`,
-      category_id: prodCategory,
-      unit: prodUnit,
-      purchase_price: Number(prodPurchasePrice),
-      selling_price: Number(prodSellingPrice),
-      current_stock: Number(prodInitialStock),
-      minimum_stock: Number(prodMinStock),
-      is_active: true,
-    });
+    const selectedCategory = prodCategory || productCategories[0]?.id;
 
-    setIsNewProdModalOpen(false);
-    setProdName('');
-    setProdSku('');
-    showToast('تمت الإضافة', `تم إضافة المنتج ${prodName} إلى المخزون`, 'success');
+    try {
+      await addProduct({
+        name: prodName.trim(),
+        sku: prodSku.trim() || `SKU-${Date.now().toString().slice(-4)}`,
+        category_id: selectedCategory || '',
+        unit: prodUnit,
+        purchase_price: Number(prodPurchasePrice),
+        selling_price: Number(prodSellingPrice),
+        current_stock: Number(prodInitialStock),
+        minimum_stock: Number(prodMinStock),
+        is_active: true,
+      });
+
+      setIsNewProdModalOpen(false);
+      setProdName('');
+      setProdSku('');
+      showToast('تمت الإضافة', `تم إضافة المنتج ${prodName} إلى المخزون`, 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر إضافة المنتج';
+      showToast('خطأ في الإضافة', msg, 'error');
+    }
   };
 
   const handleAddStockSubmit = (e: React.FormEvent) => {
@@ -305,11 +312,33 @@ export const InventoryView: React.FC = () => {
       >
         <form onSubmit={handleCreateProduct} className="space-y-4">
           <Input
-            label="اسم المنتج"
+            label="اسم المنتج *"
             placeholder="مثال: معطر لافندر صالون"
             value={prodName}
             onChange={(e) => setProdName(e.target.value)}
+            required
           />
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              قسم المنتج (التصنيف) *
+            </label>
+            <select
+              value={prodCategory}
+              onChange={(e) => setProdCategory(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-colors cursor-pointer"
+            >
+              {productCategories.length === 0 ? (
+                <option value="">-- لا توجد أقسام منشأة (قم بإنشائها من صفحة الإعدادات) --</option>
+              ) : (
+                productCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <Input
