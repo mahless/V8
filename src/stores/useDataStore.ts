@@ -65,8 +65,11 @@ interface DataStore {
   addExpense: (expenseData: Omit<Expense, 'id' | 'created_at'>) => Promise<void>;
 
   addServiceCategory: (name: string, description?: string) => Promise<void>;
+  deleteServiceCategory: (id: string) => Promise<void>;
   addProductCategory: (name: string, description?: string) => Promise<void>;
+  deleteProductCategory: (id: string) => Promise<void>;
   addExpenseCategory: (name: string) => Promise<void>;
+  deleteExpenseCategory: (id: string) => Promise<void>;
   claimVipReward: (vehicleId: string) => Promise<void>;
 
   // Search & Filtering
@@ -584,6 +587,39 @@ export const useDataStore = create<DataStore>((set, get) => ({
         set({ expenseCategories: [...get().expenseCategories, data] });
       }
     }
+  },
+
+  deleteServiceCategory: async (id) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('service_categories').delete().eq('id', id);
+      if (error) {
+        console.error('Failed to delete service category:', error);
+        throw new Error(error.message);
+      }
+    }
+    set({ serviceCategories: get().serviceCategories.filter((c) => c.id !== id) });
+  },
+
+  deleteProductCategory: async (id) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('product_categories').delete().eq('id', id);
+      if (error) {
+        console.error('Failed to delete product category:', error);
+        throw new Error(error.message);
+      }
+    }
+    set({ productCategories: get().productCategories.filter((c) => c.id !== id) });
+  },
+
+  deleteExpenseCategory: async (id) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('expense_categories').delete().eq('id', id);
+      if (error) {
+        console.error('Failed to delete expense category:', error);
+        throw new Error(error.message);
+      }
+    }
+    set({ expenseCategories: get().expenseCategories.filter((c) => c.id !== id) });
   },
 
   claimVipReward: async (vehicleId: string) => {

@@ -10,7 +10,8 @@ import {
   FolderPlus, 
   Layers, 
   Package, 
-  DollarSign 
+  DollarSign,
+  Trash2
 } from 'lucide-react';
 import { useDataStore } from '../../stores/useDataStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -21,11 +22,14 @@ export const SettingsView: React.FC = () => {
     productCategories,
     expenseCategories,
     addServiceCategory,
+    deleteServiceCategory,
     addProductCategory,
+    deleteProductCategory,
     addExpenseCategory,
+    deleteExpenseCategory,
   } = useDataStore();
 
-  const { showToast } = useUIStore();
+  const { showToast, showConfirmModal } = useUIStore();
 
   // Modals state
   const [activeModal, setActiveModal] = useState<'service_cat' | 'product_cat' | 'expense_cat' | null>(null);
@@ -98,6 +102,64 @@ export const SettingsView: React.FC = () => {
     }
   };
 
+  // Delete Handlers with Confirmation
+  const handleDeleteServiceCategory = (id: string, name: string) => {
+    showConfirmModal({
+      title: 'حذف قسم الخدمات',
+      message: `هل أنت متأكد من رغبتك في حذف قسم الخدمات "${name}"؟`,
+      confirmText: 'نعم، احذف القسم',
+      cancelText: 'تراجع',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteServiceCategory(id);
+          showToast('تم الحذف 🗑️', `تم حذف قسم الخدمات "${name}" بنجاح`, 'info');
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'تعذر حذف القسم';
+          showToast('خطأ في الحذف', msg, 'error');
+        }
+      },
+    });
+  };
+
+  const handleDeleteProductCategory = (id: string, name: string) => {
+    showConfirmModal({
+      title: 'حذف قسم المنتجات',
+      message: `هل أنت متأكد من رغبتك في حذف قسم المنتجات "${name}"؟`,
+      confirmText: 'نعم، احذف القسم',
+      cancelText: 'تراجع',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteProductCategory(id);
+          showToast('تم الحذف 🗑️', `تم حذف قسم المنتجات "${name}" بنجاح`, 'info');
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'تعذر حذف القسم';
+          showToast('خطأ في الحذف', msg, 'error');
+        }
+      },
+    });
+  };
+
+  const handleDeleteExpenseCategory = (id: string, name: string) => {
+    showConfirmModal({
+      title: 'حذف بند المصروفات',
+      message: `هل أنت متأكد من رغبتك في حذف بند المصروفات "${name}"؟`,
+      confirmText: 'نعم، احذف البند',
+      cancelText: 'تراجع',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteExpenseCategory(id);
+          showToast('تم الحذف 🗑️', `تم حذف بند المصروفات "${name}" بنجاح`, 'info');
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'تعذر حذف البند';
+          showToast('خطأ في الحذف', msg, 'error');
+        }
+      },
+    });
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Page Title */}
@@ -108,7 +170,7 @@ export const SettingsView: React.FC = () => {
             <span>إعدادات النظام وإدارة الأقسام</span>
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            إدارة وإنشاء أقسام الخدمات والمنتجات وبنود المصروفات
+            إدارة وإنشاء وحذف أقسام الخدمات والمنتجات وبنود المصروفات
           </p>
         </div>
       </div>
@@ -136,7 +198,7 @@ export const SettingsView: React.FC = () => {
               setDescInput('');
               setActiveModal('service_cat');
             }}
-            className="p-5 h-auto flex flex-col items-center justify-center gap-3 border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 group text-center"
+            className="p-5 h-auto flex flex-col items-center justify-center gap-3 border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 group text-center cursor-pointer"
           >
             <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Layers className="w-6 h-6" />
@@ -154,7 +216,7 @@ export const SettingsView: React.FC = () => {
               setDescInput('');
               setActiveModal('product_cat');
             }}
-            className="p-5 h-auto flex flex-col items-center justify-center gap-3 border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 group text-center"
+            className="p-5 h-auto flex flex-col items-center justify-center gap-3 border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 group text-center cursor-pointer"
           >
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Package className="w-6 h-6" />
@@ -171,7 +233,7 @@ export const SettingsView: React.FC = () => {
               setNameInput('');
               setActiveModal('expense_cat');
             }}
-            className="p-5 h-auto flex flex-col items-center justify-center gap-3 border-slate-200 hover:border-amber-500 hover:bg-amber-50/50 group text-center"
+            className="p-5 h-auto flex flex-col items-center justify-center gap-3 border-slate-200 hover:border-amber-500 hover:bg-amber-50/50 group text-center cursor-pointer"
           >
             <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <DollarSign className="w-6 h-6" />
@@ -183,9 +245,9 @@ export const SettingsView: React.FC = () => {
           </Button>
         </div>
 
-        {/* Existing Categories Summary */}
+        {/* Existing Categories Summary with Delete Option */}
         <div className="mt-8 pt-5 border-t border-slate-100 space-y-4">
-          <h3 className="text-xs font-bold text-slate-700">الأقسام الحالية المتاحة في النظام:</h3>
+          <h3 className="text-xs font-bold text-slate-700">الأقسام الحالية المتاحة في النظام (اضغط أفقياً للحذف):</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Service Categories List */}
@@ -196,14 +258,23 @@ export const SettingsView: React.FC = () => {
                   <span>أقسام الخدمات ({serviceCategories.length})</span>
                 </span>
               </div>
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                 {serviceCategories.length === 0 ? (
                   <p className="text-[11px] text-slate-400 text-center py-3">لا توجد أقسام خدمات بعد</p>
                 ) : (
                   serviceCategories.map((c) => (
-                    <div key={c.id} className="p-2.5 rounded-lg bg-white border border-slate-100 text-xs font-bold text-slate-700 flex items-center justify-between shadow-2xs">
-                      <span>{c.name}</span>
-                      <Badge variant="blue" size="xs">نشط</Badge>
+                    <div key={c.id} className="p-2.5 rounded-lg bg-white border border-slate-100 text-xs font-bold text-slate-700 flex items-center justify-between shadow-2xs group hover:border-red-200 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="blue" size="xs">خدمات</Badge>
+                        <span>{c.name}</span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteServiceCategory(c.id, c.name)}
+                        className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                        title="حذف هذا القسم"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))
                 )}
@@ -218,14 +289,23 @@ export const SettingsView: React.FC = () => {
                   <span>أقسام المنتجات ({productCategories.length})</span>
                 </span>
               </div>
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                 {productCategories.length === 0 ? (
                   <p className="text-[11px] text-slate-400 text-center py-3">لا توجد أقسام منتجات بعد</p>
                 ) : (
                   productCategories.map((c) => (
-                    <div key={c.id} className="p-2.5 rounded-lg bg-white border border-slate-100 text-xs font-bold text-slate-700 flex items-center justify-between shadow-2xs">
-                      <span>{c.name}</span>
-                      <Badge variant="blue" size="xs">نشط</Badge>
+                    <div key={c.id} className="p-2.5 rounded-lg bg-white border border-slate-100 text-xs font-bold text-slate-700 flex items-center justify-between shadow-2xs group hover:border-red-200 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="blue" size="xs">منتجات</Badge>
+                        <span>{c.name}</span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteProductCategory(c.id, c.name)}
+                        className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                        title="حذف هذا القسم"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))
                 )}
@@ -240,14 +320,23 @@ export const SettingsView: React.FC = () => {
                   <span>بنود المصروفات ({expenseCategories.length})</span>
                 </span>
               </div>
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                 {expenseCategories.length === 0 ? (
                   <p className="text-[11px] text-slate-400 text-center py-3">لا توجد بنود مصروفات بعد</p>
                 ) : (
                   expenseCategories.map((c) => (
-                    <div key={c.id} className="p-2.5 rounded-lg bg-white border border-slate-100 text-xs font-bold text-slate-700 flex items-center justify-between shadow-2xs">
-                      <span>{c.name}</span>
-                      <Badge variant="green" size="xs">نشط</Badge>
+                    <div key={c.id} className="p-2.5 rounded-lg bg-white border border-slate-100 text-xs font-bold text-slate-700 flex items-center justify-between shadow-2xs group hover:border-red-200 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="amber" size="xs">مصروفات</Badge>
+                        <span>{c.name}</span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteExpenseCategory(c.id, c.name)}
+                        className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                        title="حذف هذا البند"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))
                 )}
