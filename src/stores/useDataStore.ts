@@ -499,6 +499,29 @@ export const useDataStore = create<DataStore>((set, get) => ({
         throw new Error(error.message);
       }
 
+      if (expenseData.product_id && expenseData.quantity && expenseData.quantity > 0) {
+        const prod = get().products.find((p) => p.id === expenseData.product_id);
+        if (prod) {
+          const newStock = Math.max(0, prod.current_stock - expenseData.quantity);
+          await supabase
+            .from('products')
+            .update({ current_stock: newStock, updated_at: new Date().toISOString() })
+            .eq('id', prod.id);
+
+          await supabase
+            .from('inventory_movements')
+            .insert([{
+              product_id: prod.id,
+              movement_type: 'OUT',
+              quantity: expenseData.quantity,
+              unit_cost: prod.purchase_price,
+              reference_type: 'EXPENSE',
+              reference_id: data ? data.id : null,
+              notes: `استهلاك مصروفات: ${expenseData.description}`
+            }]);
+        }
+      }
+
       if (data) {
         await get().fetchInitialData();
       }

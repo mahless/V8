@@ -6,65 +6,52 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { PriceDisplay } from '../../components/ui/PriceDisplay';
 import { Modal } from '../../components/ui/Modal';
-import { Coins, Plus, Receipt, Package, AlertCircle, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Coins, Plus, Receipt, Package, CheckCircle2, Box } from 'lucide-react';
 import { formatArabicDate } from '../../lib/utils';
 
 export const ExpensesView: React.FC = () => {
-  const { expenses, expenseCategories, products, productCategories, addExpense } = useDataStore();
+  const { expenses, expenseCategories, products, addExpense } = useDataStore();
   const { showToast } = useUIStore();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [categoryId, setCategoryId] = useState(expenseCategories[0]?.id || '');
+  const [isStockDeduction, setIsStockDeduction] = useState(true);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
-  const [amount, setAmount] = useState<number>(100);
+  const [amount, setAmount] = useState<number>(0);
   const [description, setDescription] = useState('');
 
-  // Find products associated with washing tools
-  const washProductCategory = productCategories.find(
-    (c) => c.name.includes('غسيل') || c.id === 'pc-1'
-  );
-  
-  const washingToolsProducts = products.filter(
-    (p) =>
-      (washProductCategory && p.category_id === washProductCategory.id) ||
-      p.category_id === 'pc-1' ||
-      p.name.includes('غسيل') ||
-      p.name.includes('شامبو') ||
-      p.name.includes('منظف')
-  );
-
-  const availableWashProducts = washingToolsProducts.length > 0 ? washingToolsProducts : products;
-
   const currentCategory = expenseCategories.find((c) => c.id === categoryId);
-  const isWashToolsCategory =
-    currentCategory?.name.includes('غسيل') || currentCategory?.id === 'ec-wash-tools';
-
   const selectedProduct = products.find((p) => p.id === selectedProductId);
 
-  // Initialize or update product selection when category switches to washing tools
+  // Auto-set product selection when modal opens or products update
   useEffect(() => {
-    if (isWashToolsCategory) {
-      if (!selectedProductId && availableWashProducts.length > 0) {
-        setSelectedProductId(availableWashProducts[0].id);
-      }
+    if (!selectedProductId && products.length > 0) {
+      setSelectedProductId(products[0].id);
     }
-  }, [isWashToolsCategory, availableWashProducts, selectedProductId]);
+  }, [products, selectedProductId]);
 
-  // Update amount & description suggestion when product or quantity changes for washing tools
+  // Update amount & description when product or quantity changes in stock deduction mode
   useEffect(() => {
-    if (isWashToolsCategory && selectedProduct) {
+    if (isStockDeduction && selectedProduct) {
       const calculatedAmount = selectedProduct.purchase_price * quantity;
       setAmount(calculatedAmount);
-      setDescription(`استهلاك: ${selectedProduct.name} (${quantity} ${selectedProduct.unit})`);
+      setDescription(`استهلاك من المخزن: ${selectedProduct.name} (${quantity} ${selectedProduct.unit}) بسعر التكلفة`);
     }
-  }, [isWashToolsCategory, selectedProductId, quantity, selectedProduct]);
+  }, [isStockDeduction, selectedProductId, quantity, selectedProduct]);
 
   const handleOpenModal = () => {
-    const defaultCat = expenseCategories.find(c => c.id === 'ec-wash-tools') || expenseCategories[0];
-    setCategoryId(defaultCat?.id || '');
-    if (availableWashProducts.length > 0) {
-      setSelectedProductId(availableWashProducts[0].id);
+    setCategoryId(expenseCategories[0]?.id || '');
+    setIsStockDeduction(true);
+    if (products.length > 0) {
+      setSelectedProductId(products[0].id);
+      const p = products[0];
+      setAmount(p.purchase_price * 1);
+      setDescription(`استهلاك من المخزن: ${p.name} (1 ${p.unit}) بسعر التكلفة`);
+    } else {
+      setAmount(100);
+      setDescription('');
     }
     setQuantity(1);
     setIsModalOpen(true);
@@ -72,8 +59,28 @@ export const ExpensesView: React.FC = () => {
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isStockDeduction) {
+      if (!selectedProduct) {
+        showToast('يرجى اختيار منتج', 'لا بد من اختيار منتج من المخزن للخصم', 'error');
+        return;
+      }
+      if (quantity <= 0) {
+        showToast('الكمية غير صحيحة', 'يرجى إدخال كمية مستهلكة أكبر من صفر', 'error');
+        return;
+      }
+      if (selectedProduct.current_stock < quantity) {
+        showToast(
+          'المخزون غير كاف',
+          `الرصيد المتاح بالمخزن (${selectedProduct.current_stock} ${selectedProduct.unit}) أقل من الكمية المطلوبة (${quantity})`,
+          'error'
+        );
+        return;
+      }
+    }
+
     if (!description.trim()) {
       showToast('البيان مطلوب', 'يرجى إدخال سبب المصروف', 'error');
       return;
@@ -83,46 +90,44 @@ export const ExpensesView: React.FC = () => {
       return;
     }
 
-    if (isWashToolsCategory && selectedProduct) {
-      if (quantity <= 0) {
-        showToast('الكمية غير صحيحة', 'يرجى تحديد كمية مستهلكة صحيحة', 'error');
-        return;
-      }
-      if (selectedProduct.current_stock < quantity) {
+    setIsSubmitting(true);
+
+    try {
+      if (isStockDeduction && selectedProduct) {
+        await addExpense({
+          category_id: categoryId || undefined,
+          amount: Number(amount),
+          description: description.trim(),
+          product_id: selectedProduct.id,
+          product_name: selectedProduct.name,
+          quantity: Number(quantity),
+        });
+
         showToast(
-          'تنبيه الرصيد',
-          `الرصيد المتاح بالمخزن (${selectedProduct.current_stock} ${selectedProduct.unit}) أقل من الكمية المطلوبة`,
-          'info'
+          'تم تسجيل المصروف والخصم 📦',
+          `تمت إضافة ${amount} ج.م بسعر التكلفة وخصم (${quantity} ${selectedProduct.unit}) من مخزن "${selectedProduct.name}" بنجاح`,
+          'success'
         );
+      } else {
+        await addExpense({
+          category_id: categoryId || undefined,
+          amount: Number(amount),
+          description: description.trim(),
+        });
+
+        showToast('تم تسجيل المصروف 💸', 'تم حفظ المصروف المالي بنجاح', 'success');
       }
 
-      addExpense({
-        category_id: categoryId,
-        amount: Number(amount),
-        description: description.trim(),
-        product_id: selectedProduct.id,
-        product_name: selectedProduct.name,
-        quantity: Number(quantity),
-      });
-
-      showToast(
-        'تم تسجيل المصروف والخصم',
-        `تم تسجيل المصروف وخصم (${quantity} ${selectedProduct.unit}) من مخزن "${selectedProduct.name}" بنجاح`,
-        'success'
-      );
-    } else {
-      addExpense({
-        category_id: categoryId,
-        amount: Number(amount),
-        description: description.trim(),
-      });
-      showToast('تم تسجيل المصروف', 'تم حفظ بند المصروفات بنجاح', 'success');
+      setIsModalOpen(false);
+      setDescription('');
+      setAmount(0);
+      setQuantity(1);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر تسجيل المصروف';
+      showToast('خطأ في العملية', msg, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsModalOpen(false);
-    setDescription('');
-    setAmount(100);
-    setQuantity(1);
   };
 
   return (
@@ -135,7 +140,7 @@ export const ExpensesView: React.FC = () => {
             <span>إدارة المصروفات</span>
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            تسجيل مصروفات التشغيل، أدوات الغسيل المستهلكة من المخزن، وفواتير الصيانة.
+            تسجيل مصروفات التشغيل، خصم منتجات المخزن بسعر التكلفة، ومتابعة القيد المالي.
           </p>
         </div>
 
@@ -177,15 +182,11 @@ export const ExpensesView: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold text-slate-900">{exp.description}</span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${
-                        exp.category_name?.includes('غسيل')
-                          ? 'bg-blue-100 text-blue-900'
-                          : 'bg-amber-100 text-amber-900'
-                      }`}
-                    >
-                      {exp.category_name}
-                    </span>
+                    {exp.category_name && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-amber-100 text-amber-900">
+                        {exp.category_name}
+                      </span>
+                    )}
                     {exp.product_name && exp.quantity && (
                       <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
                         <Package className="w-3 h-3" />
@@ -210,14 +211,15 @@ export const ExpensesView: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title="تسجيل مصروف جديد"
+        description="اختر بند المصروف أو حدد منتجاً من المخزن ليتم خصمه بسعر التكلفة"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">قسم المصروفات</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">بند / قسم المصروفات</label>
             <select
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-600 font-medium"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600"
             >
               {expenseCategories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -227,89 +229,113 @@ export const ExpensesView: React.FC = () => {
             </select>
           </div>
 
-          {/* Dynamic Washing Tools Inventory Selection */}
-          {isWashToolsCategory && (
-            <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/80 space-y-3">
-              <div className="flex items-center gap-2 text-blue-800 font-bold text-xs">
-                <Package className="w-4 h-4 text-blue-600" />
-                <span>اختيار أداة الغسيل من المخزن للخصم المباشر</span>
-              </div>
+          {/* Toggle for Stock Deduction Mode */}
+          <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200 space-y-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="stock_deduct_toggle"
+                checked={isStockDeduction}
+                onChange={(e) => setIsStockDeduction(e.target.checked)}
+                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <label htmlFor="stock_deduct_toggle" className="text-xs font-black text-blue-900 cursor-pointer select-none flex items-center gap-1.5">
+                <Box className="w-4 h-4 text-blue-600" />
+                <span>خصم مصروف من منتجات المخزن (حساب التكلفة تلقائياً)</span>
+              </label>
+            </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  أداة الغسيل المتوفرة في المخزن
-                </label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
-                  className="w-full bg-white border border-blue-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                >
-                  {availableWashProducts.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — (المتاح: {p.current_stock} {p.unit}) — تكلفة الوحدة: {p.purchase_price} ج.م
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {isStockDeduction && (
+              <div className="space-y-3 pt-2 border-t border-blue-200/60">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    اختر المنتج من المخزن *
+                  </label>
+                  <select
+                    value={selectedProductId}
+                    onChange={(e) => setSelectedProductId(e.target.value)}
+                    className="w-full bg-white border border-blue-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                  >
+                    {products.length === 0 ? (
+                      <option value="">-- لا توجد منتجات بالمخزن --</option>
+                    ) : (
+                      products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — (المتاح: {p.current_stock} {p.unit}) — سعر التكلفة: {p.purchase_price} ج.م
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
 
-              {selectedProduct && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      الكمية المستهلكة ({selectedProduct.unit})
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={Math.max(1, selectedProduct.current_stock)}
-                      value={quantity}
-                      onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 font-bold focus:outline-none focus:border-blue-600"
-                    />
-                  </div>
-
-                  <div className="flex flex-col justify-end">
-                    <div className="bg-white/80 p-2.5 rounded-xl border border-blue-200 text-xs">
-                      <div className="flex justify-between items-center text-slate-600">
-                        <span>الرصيد المتاح:</span>
-                        <span className="font-bold text-slate-900">
-                          {selectedProduct.current_stock} {selectedProduct.unit}
-                        </span>
+                {selectedProduct && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          الكمية المستهلكة ({selectedProduct.unit}) *
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={Math.max(1, selectedProduct.current_stock)}
+                          value={quantity}
+                          onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-600"
+                        />
                       </div>
-                      <div className="flex justify-between items-center text-slate-600 mt-1">
-                        <span>المتبقي بعد الخصم:</span>
-                        <span
-                          className={`font-bold ${
-                            selectedProduct.current_stock - quantity < 0
-                              ? 'text-rose-600'
-                              : 'text-emerald-700'
-                          }`}
-                        >
-                          {Math.max(0, selectedProduct.current_stock - quantity)} {selectedProduct.unit}
-                        </span>
+
+                      <div className="flex flex-col justify-end">
+                        <div className="bg-white p-2.5 rounded-xl border border-blue-200 text-xs">
+                          <div className="flex justify-between items-center text-slate-600">
+                            <span>الرصيد المتاح:</span>
+                            <span className="font-mono font-bold text-slate-900">
+                              {selectedProduct.current_stock} {selectedProduct.unit}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-slate-600 mt-1">
+                            <span>المتبقي بعد الخصم:</span>
+                            <span
+                              className={`font-mono font-bold ${
+                                selectedProduct.current_stock - quantity < 0
+                                  ? 'text-rose-600'
+                                  : 'text-emerald-700'
+                              }`}
+                            >
+                              {Math.max(0, selectedProduct.current_stock - quantity)} {selectedProduct.unit}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              )}
 
-              <div className="text-[11px] text-blue-700 flex items-center gap-1.5 bg-blue-100/60 p-2 rounded-lg font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span>سيتم خصم الكمية تلقائياً من مخزن المنتجات وتسجيل حركة صرف للمغسلة.</span>
+                    <div className="p-2.5 rounded-xl bg-white border border-emerald-200 text-xs flex items-center justify-between font-bold text-emerald-800">
+                      <span>إجمالي التكلفة المحسوبة ({quantity} × {selectedProduct.purchase_price} ج.م):</span>
+                      <PriceDisplay amount={selectedProduct.purchase_price * quantity} size="sm" className="text-emerald-800" />
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-[11px] text-blue-800 flex items-center gap-1.5 bg-blue-100/60 p-2 rounded-lg font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>يتم الخصم بسعر تكلفة الشراء وتحديث كمية المخزن وتسجيل حركة الصرف فوراً.</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <Input
-            label="مبلغ المصروف / التكلفة (ج.م)"
+            label="مبلغ المصروف (ج.م) *"
             type="number"
             value={amount}
             onChange={(e) => setAmount(Number(e.target.value))}
+            readOnly={isStockDeduction}
+            className={isStockDeduction ? 'bg-slate-100 font-bold text-slate-700' : ''}
           />
 
           <Input
-            label="البيان / السبب"
-            placeholder="مثال: استهلاك شامبو للمغسلة أو فاتورة مياه..."
+            label="البيان / السبب *"
+            placeholder="مثال: استهلاك شامبو للمغسلة، فاتورة كهرباء..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
@@ -318,8 +344,8 @@ export const ExpensesView: React.FC = () => {
             <Button variant="ghost" type="button" onClick={() => setIsModalOpen(false)}>
               إلغاء
             </Button>
-            <Button type="submit">
-              {isWashToolsCategory ? 'حفظ المصروف وخصم المخزون' : 'حفظ المصروف'}
+            <Button type="submit" isLoading={isSubmitting}>
+              {isStockDeduction ? 'حفظ المصروف وخصم المخزون' : 'حفظ المصروف'}
             </Button>
           </div>
         </form>
@@ -327,4 +353,3 @@ export const ExpensesView: React.FC = () => {
     </div>
   );
 };
-
