@@ -67,6 +67,7 @@ interface DataStore {
   addServiceCategory: (name: string, description?: string) => Promise<void>;
   addProductCategory: (name: string, description?: string) => Promise<void>;
   addExpenseCategory: (name: string) => Promise<void>;
+  claimVipReward: (vehicleId: string) => Promise<void>;
 
   // Search & Filtering
   searchVehicles: (query: string) => Vehicle[];
@@ -133,6 +134,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
         phone: v.phone,
         notes: v.notes || '',
         visits_count: v.visits_count || 0,
+        last_rewarded_visit_count: v.last_rewarded_visit_count || 0,
         total_spent: v.total_spent || 0,
         last_visit_at: v.last_visit_at,
         created_at: v.created_at,
@@ -558,6 +560,30 @@ export const useDataStore = create<DataStore>((set, get) => ({
         set({ expenseCategories: [...get().expenseCategories, data] });
       }
     }
+  },
+
+  claimVipReward: async (vehicleId: string) => {
+    const target = get().vehicles.find((v) => v.id === vehicleId);
+    if (!target) return;
+    const currentVisits = target.visits_count || 0;
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({ last_rewarded_visit_count: currentVisits })
+        .eq('id', vehicleId);
+
+      if (error) {
+        console.error('Failed to update VIP reward count in Supabase:', error);
+        throw new Error(error.message);
+      }
+    }
+
+    set({
+      vehicles: get().vehicles.map((v) =>
+        v.id === vehicleId ? { ...v, last_rewarded_visit_count: currentVisits } : v
+      ),
+    });
   },
 
   searchVehicles: (query) => {

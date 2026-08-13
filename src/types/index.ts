@@ -13,6 +13,7 @@ export interface Vehicle {
   phone: string;
   notes?: string;
   visits_count?: number;
+  last_rewarded_visit_count?: number;
   total_spent?: number;
   last_visit_at?: string;
   created_at: string;

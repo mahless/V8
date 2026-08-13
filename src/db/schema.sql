@@ -44,9 +44,12 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
     driver_name VARCHAR(100) NOT NULL,
     phone VARCHAR(20) NOT NULL,
     notes TEXT,
+    last_rewarded_visit_count INT DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS last_rewarded_visit_count INT DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_vehicles_plate_display ON public.vehicles(plate_display);
 CREATE INDEX IF NOT EXISTS idx_vehicles_phone ON public.vehicles(phone);
@@ -363,6 +366,7 @@ SELECT
     v.driver_name,
     v.phone,
     v.notes,
+    COALESCE(v.last_rewarded_visit_count, 0) AS last_rewarded_visit_count,
     v.created_at,
     v.updated_at,
     COALESCE(s.visits_count, 0) AS visits_count,

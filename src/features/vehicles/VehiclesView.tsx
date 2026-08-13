@@ -14,11 +14,13 @@ import {
   Search,
   Plus,
   Phone,
-  User,
   History,
-  Calendar,
   Sparkles,
-  ChevronLeft,
+  Award,
+  Trash2,
+  Gift,
+  Star,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   formatArabicDate,
@@ -27,14 +29,14 @@ import {
   validatePhone,
   buildPlateDisplay,
   formatPlateLettersInput,
-  convertArabicDigitsToEnglish,
 } from '../../lib/utils';
 import { Vehicle } from '../../types';
 
 export const VehiclesView: React.FC = () => {
-  const { vehicles, sales, addVehicle, searchVehicles } = useDataStore();
-  const { setActiveTab, setSelectedVehicle, showToast } = useUIStore();
+  const { vehicles, sales, addVehicle, searchVehicles, claimVipReward } = useDataStore();
+  const { setActiveTab, setSelectedVehicle, showToast, showConfirmModal } = useUIStore();
 
+  const [activeSubTab, setActiveSubTab] = useState<'all' | 'vip'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProfileVehicle, setSelectedProfileVehicle] = useState<Vehicle | null>(vehicles[0] || null);
 
@@ -47,14 +49,33 @@ export const VehiclesView: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const filteredVehicles = searchQuery.trim() ? searchVehicles(searchQuery) : vehicles;
+  // VIP Logic Helper
+  const getVipEligibleVisits = (v: Vehicle) => {
+    const visits = v.visits_count || 0;
+    const lastRewarded = v.last_rewarded_visit_count || 0;
+    return Math.max(0, visits - lastRewarded);
+  };
+
+  const vipVehicles = vehicles.filter((v) => getVipEligibleVisits(v) >= 10);
+
+  // Base list depending on subTab
+  const baseList = activeSubTab === 'vip' ? vipVehicles : vehicles;
+
+  // Filtered by Search
+  const filteredVehicles = searchQuery.trim()
+    ? baseList.filter((v) =>
+        v.plate_display.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+        v.driver_name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+        v.phone.includes(searchQuery.trim())
+      )
+    : baseList;
 
   // History for selected profile
   const vehicleSalesHistory = selectedProfileVehicle
     ? sales.filter((s) => s.vehicle_id === selectedProfileVehicle.id)
     : [];
 
-  const handleCreateVehicle = (e: React.FormEvent) => {
+  const handleCreateVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs: Record<string, string> = {};
 
@@ -69,16 +90,25 @@ export const VehiclesView: React.FC = () => {
     }
 
     const plateDisplay = buildPlateDisplay(letters, numbers);
-    const created = addVehicle({
-      plate_letters: letters.trim(),
-      plate_numbers: numbers.trim(),
-      plate_display: plateDisplay,
-      driver_name: driver.trim(),
-      phone: phone.trim(),
-      notes: notes.trim() || undefined,
-    });
+    try {
+      const created = await addVehicle({
+        plate_letters: letters.trim(),
+        plate_numbers: numbers.trim(),
+        plate_display: plateDisplay,
+        driver_name: driver.trim(),
+        phone: phone.trim(),
+        notes: notes.trim() || undefined,
+      });
 
-    setSelectedProfileVehicle(created);
+      if (created) {
+        setSelectedProfileVehicle(created);
+        showToast('تم التسجيل', `تمت إضافة السيارة ${plateDisplay} بنجاح`, 'success');
+      }
+    } catch (err) {
+      showToast('خطأ في التسجيل', 'تعذر حفظ البيانات في قاعدة البيانات', 'error');
+      return;
+    }
+
     setIsNewModalOpen(false);
     setLetters('');
     setNumbers('');
@@ -86,7 +116,29 @@ export const VehiclesView: React.FC = () => {
     setPhone('');
     setNotes('');
     setErrors({});
-    showToast('تم التسجيل', `تمت إضافة السيارة ${plateDisplay} بنجاح`, 'success');
+  };
+
+  const handleClaimVipDiscount = (vehicle: Vehicle) => {
+    const eligibleVisits = getVipEligibleVisits(vehicle);
+    showConfirmModal({
+      title: 'تقديم خصم العميل المميز ⭐',
+      message: `هل قمت بتقديم الخصم/المكافأة للعميل "${vehicle.driver_name}"؟ سيتم حذف العميل من قائمة المميزين مؤقتاً حتى يكمل 10 زيارات جديدة (${eligibleVisits} زيارات مسجلة حالياً).`,
+      confirmText: 'نعم، تقديم الخصم وإعادة التعيين',
+      cancelText: 'إلغاء',
+      type: 'warning',
+      onConfirm: async () => {
+        try {
+          await claimVipReward(vehicle.id);
+          showToast(
+            'تم تقديم الخصم ⭐',
+            `تم استهلاك مكافأة العميل ${vehicle.driver_name} وإزالته لحين إتمام 10 زيارات قادمة`,
+            'success'
+          );
+        } catch (err) {
+          showToast('خطأ', 'تعذر تحديث حالة الخصم للعميل', 'error');
+        }
+      },
+    });
   };
 
   return (
@@ -99,7 +151,7 @@ export const VehiclesView: React.FC = () => {
             <span>سجل السيارات والعملاء</span>
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            البحث في قاعدة بيانات السيارات، معرفة عدد الزيارات، والسجل الزمني الكامل للغسيل والصيانة.
+            البحث في قاعدة بيانات السيارات، معرفة عدد الزيارات، ومكافآت العملاء المميزين (10 زيارات+).
           </p>
         </div>
 
@@ -112,7 +164,44 @@ export const VehiclesView: React.FC = () => {
         </Button>
       </div>
 
-      {/* Main Grid: Vehicle List (Left) + Detailed Profile Timeline (Right) */}
+      {/* Navigation Sub-Tabs: All Vehicles vs VIP Clients */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+        <button
+          onClick={() => setActiveSubTab('all')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            activeSubTab === 'all'
+              ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          <Car className="w-4 h-4" />
+          <span>جميع العملاء والسيارات</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+            activeSubTab === 'all' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'
+          }`}>
+            {vehicles.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('vip')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            activeSubTab === 'vip'
+              ? 'bg-amber-500 text-white shadow-sm shadow-amber-500/20'
+              : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
+          }`}
+        >
+          <Star className="w-4 h-4 fill-amber-300 text-amber-300" />
+          <span>عميل مميز (خصم 10 زيارات)</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+            activeSubTab === 'vip' ? 'bg-amber-700 text-white' : 'bg-amber-200 text-amber-900'
+          }`}>
+            {vipVehicles.length}
+          </span>
+        </button>
+      </div>
+
+      {/* Main Grid: Vehicle Directory (Left) + Detailed Profile Timeline (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Vehicles Directory (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
@@ -121,36 +210,66 @@ export const VehiclesView: React.FC = () => {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث برقم اللوحة، اسم العميل، أو الهاتف..."
+                placeholder={activeSubTab === 'vip' ? 'ابحث في قائمة العملاء المميزين...' : 'ابحث برقم اللوحة، اسم العميل، أو الهاتف...'}
                 icon={<Search className="w-4 h-4" />}
               />
             </div>
 
             <div className="space-y-2.5 max-h-[600px] overflow-y-auto pl-1">
               {filteredVehicles.length === 0 ? (
-                <div className="p-6 text-center text-slate-400 text-xs">
-                  لا توجد نتائج مطابقة لـ "{searchQuery}"
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  {activeSubTab === 'vip'
+                    ? 'لا يوجد عملاء مميزين مستحقين للخصم حالياً (يتطلب 10 زيارات أو أكثر).'
+                    : `لا توجد نتائج مطابقة لـ "${searchQuery}"`}
                 </div>
               ) : (
                 filteredVehicles.map((v) => {
                   const isSelected = selectedProfileVehicle?.id === v.id;
+                  const eligibleVisits = getVipEligibleVisits(v);
+                  const isVip = eligibleVisits >= 10;
+
                   return (
-                    <VehicleCard
-                      key={v.id}
-                      vehicle={v}
-                      badge={
-                        <Badge variant="blue" size="sm">
-                          {v.visits_count || 0} زيارة
-                        </Badge>
-                      }
-                      onClick={() => setSelectedProfileVehicle(v)}
-                      className={
-                        isSelected
-                          ? 'bg-blue-50/90 border-blue-500 shadow-sm ring-1 ring-blue-500/30'
-                          : 'bg-white border-slate-200/80 hover:border-blue-200 hover:bg-slate-50/50'
-                      }
-                      size="sm"
-                    />
+                    <div key={v.id} className="relative group">
+                      <VehicleCard
+                        vehicle={v}
+                        badge={
+                          isVip ? (
+                            <Badge variant="green" size="sm" className="bg-amber-500 text-white border-amber-600 flex items-center gap-1">
+                              <Star className="w-3 h-3 fill-white" />
+                              <span>مميز ({eligibleVisits} زيارات)</span>
+                            </Badge>
+                          ) : (
+                            <Badge variant="blue" size="sm">
+                              {v.visits_count || 0} زيارة
+                            </Badge>
+                          )
+                        }
+                        action={
+                          isVip ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleClaimVipDiscount(v);
+                              }}
+                              className="p-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all cursor-pointer shadow-xs border border-rose-200"
+                              title="تقديم الخصم وحذف من القائمة حتى 10 زيارات جديدة"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          ) : undefined
+                        }
+                        onClick={() => setSelectedProfileVehicle(v)}
+                        className={
+                          isSelected
+                            ? 'bg-blue-50/90 border-blue-500 shadow-sm ring-1 ring-blue-500/30'
+                            : isVip
+                            ? 'bg-amber-50/40 border-amber-200 hover:border-amber-300'
+                            : 'bg-white border-slate-200/80 hover:border-blue-200 hover:bg-slate-50/50'
+                        }
+                        size="sm"
+                      />
+                    </div>
                   );
                 })
               )}
@@ -168,9 +287,16 @@ export const VehiclesView: React.FC = () => {
                   <div className="flex items-center gap-3.5">
                     <PlateBadge plateDisplay={selectedProfileVehicle.plate_display} size="lg" />
                     <div>
-                      <h2 className="text-base sm:text-lg font-black text-slate-900">
-                        {selectedProfileVehicle.driver_name}
-                      </h2>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base sm:text-lg font-black text-slate-900">
+                          {selectedProfileVehicle.driver_name}
+                        </h2>
+                        {getVipEligibleVisits(selectedProfileVehicle) >= 10 && (
+                          <Badge variant="green" size="xs" className="bg-amber-500 text-white">
+                            ⭐ عميل مميز
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mt-0.5">
                         <Phone className="w-3.5 h-3.5 text-slate-400" />
                         <span>{selectedProfileVehicle.phone}</span>
@@ -199,19 +325,34 @@ export const VehiclesView: React.FC = () => {
                   </div>
 
                   <div className="p-3 bg-white rounded-xl border border-slate-100 text-center">
-                    <span className="text-[10px] text-slate-400 font-bold block">إجمالي الإنفاق</span>
-                    <PriceDisplay amount={selectedProfileVehicle.total_spent || 0} size="sm" className="text-blue-700" />
+                    <span className="text-[10px] text-slate-400 font-bold block">زيارات الدورة الحالية</span>
+                    <span className="text-lg font-black text-amber-600 font-mono">
+                      {getVipEligibleVisits(selectedProfileVehicle)} / 10
+                    </span>
                   </div>
 
                   <div className="p-3 bg-white rounded-xl border border-slate-100 text-center">
-                    <span className="text-[10px] text-slate-400 font-bold block">آخر زيارة</span>
-                    <span className="text-xs font-semibold text-slate-800 block mt-1">
-                      {selectedProfileVehicle.last_visit_at
-                        ? formatArabicDate(selectedProfileVehicle.last_visit_at)
-                        : 'حديثة'}
-                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold block">إجمالي الإنفاق</span>
+                    <PriceDisplay amount={selectedProfileVehicle.total_spent || 0} size="sm" className="text-blue-700" />
                   </div>
                 </div>
+
+                {getVipEligibleVisits(selectedProfileVehicle) >= 10 && (
+                  <div className="mt-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3 text-xs text-amber-900 font-bold">
+                    <div className="flex items-center gap-2">
+                      <Gift className="w-5 h-5 text-amber-600 shrink-0" />
+                      <span>العميل مستحق لخصم الزيارة العاشرة ⭐</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleClaimVipDiscount(selectedProfileVehicle)}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-1.5 h-auto shrink-0"
+                      icon={<Trash2 className="w-3.5 h-3.5" />}
+                    >
+                      تقديم الخصم وإعادة التعيين
+                    </Button>
+                  </div>
+                )}
 
                 {selectedProfileVehicle.notes && (
                   <div className="mt-4 p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 text-xs text-amber-900 font-medium">
@@ -238,7 +379,7 @@ export const VehiclesView: React.FC = () => {
                       لا توجد فواتير سابقة مسجلة لهذه السيارة حتى الآن.
                     </div>
                   ) : (
-                    vehicleSalesHistory.map((s, idx) => (
+                    vehicleSalesHistory.map((s) => (
                       <div key={s.id} className="relative pl-4 border-r-2 border-blue-500 pr-4 py-1">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
