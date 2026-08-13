@@ -7,13 +7,18 @@
 -- 0. Extensions & Sequences
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+CREATE OR REPLACE FUNCTION public.uuid_generate_v4() 
+RETURNS UUID 
+LANGUAGE sql 
+AS $$ SELECT gen_random_uuid(); $$;
+
 CREATE SEQUENCE IF NOT EXISTS public.invoice_number_seq START WITH 1 INCREMENT BY 1;
 
 -- ====================================================================
 -- 1. PROFILES TABLE (المستخدمين والأدوار - MANAGER / EMPLOYEE Only)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     full_name VARCHAR(100) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'EMPLOYEE' CHECK (role IN ('MANAGER', 'EMPLOYEE')),
     is_active BOOLEAN DEFAULT TRUE,
@@ -25,7 +30,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- 2. SETTINGS TABLE (إعدادات المغسلة)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.settings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     wash_name VARCHAR(100) NOT NULL DEFAULT 'مغسلة السيارات الحديثة',
     address TEXT DEFAULT 'طريق الخدمة - قسم السيارات',
     phone VARCHAR(20) DEFAULT '01012345678',
@@ -37,7 +42,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
 -- 3. VEHICLES TABLE (السيارات)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.vehicles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     plate_letters VARCHAR(20) NOT NULL,
     plate_numbers VARCHAR(20) NOT NULL,
     plate_display VARCHAR(50) NOT NULL UNIQUE,
@@ -58,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_vehicles_phone ON public.vehicles(phone);
 -- 4. SERVICE CATEGORIES (أقسام الخدمات)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.service_categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     description TEXT,
     is_active BOOLEAN DEFAULT TRUE,
@@ -69,7 +74,7 @@ CREATE TABLE IF NOT EXISTS public.service_categories (
 -- 5. SERVICES (الخدمات)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.services (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     category_id UUID REFERENCES public.service_categories(id) ON DELETE CASCADE,
     name VARCHAR(150) NOT NULL,
     description TEXT,
@@ -86,7 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_services_active ON public.services(is_active);
 -- 6. PRODUCT CATEGORIES (أقسام المنتجات)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.product_categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     description TEXT,
     is_active BOOLEAN DEFAULT TRUE
@@ -96,7 +101,7 @@ CREATE TABLE IF NOT EXISTS public.product_categories (
 -- 7. PRODUCTS / INVENTORY (المنتجات والمخزون)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.products (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     category_id UUID REFERENCES public.product_categories(id) ON DELETE SET NULL,
     name VARCHAR(150) NOT NULL,
     sku VARCHAR(50) UNIQUE,
@@ -118,7 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_products_active ON public.products(is_active);
 -- 8. SALES / POS TRANSACTIONS (العمليات والفواتير - STRICT CASH / WALLET ONLY)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.sales (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     invoice_number VARCHAR(50) NOT NULL UNIQUE,
     idempotency_key VARCHAR(100) NOT NULL UNIQUE, -- Mandatory Duplicate sale prevention
     vehicle_id UUID REFERENCES public.vehicles(id) ON DELETE RESTRICT,
@@ -142,7 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_status ON public.sales(status);
 -- 9. SALE ITEMS (تفاصيل الفاتورة)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.sale_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sale_id UUID REFERENCES public.sales(id) ON DELETE CASCADE,
     item_type VARCHAR(20) NOT NULL CHECK (item_type IN ('SERVICE', 'PRODUCT')),
     service_id UUID REFERENCES public.services(id) ON DELETE SET NULL,
@@ -159,7 +164,7 @@ CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON public.sale_items(sale_id);
 -- 10. PAYMENTS (المدفوعات - Strict 1:1 Payment & Full Payment Constraint)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.payments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sale_id UUID NOT NULL UNIQUE REFERENCES public.sales(id) ON DELETE CASCADE, -- Single Payment per Sale Constraint
     amount NUMERIC(10,2) NOT NULL CHECK (amount >= 0),
     payment_method VARCHAR(20) NOT NULL CHECK (payment_method IN ('CASH', 'WALLET')),
@@ -173,7 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_payments_sale_id ON public.payments(sale_id);
 -- 11. INVENTORY MOVEMENTS (حركات المخزن - Immutability)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.inventory_movements (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
     movement_type VARCHAR(20) NOT NULL CHECK (movement_type IN ('IN', 'OUT', 'ADJUSTMENT', 'RETURN')),
     quantity INT NOT NULL CHECK (quantity <> 0),
@@ -191,13 +196,13 @@ CREATE INDEX IF NOT EXISTS idx_inventory_movements_product_id ON public.inventor
 -- 12. EXPENSES (المصروفات)
 -- ====================================================================
 CREATE TABLE IF NOT EXISTS public.expense_categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS public.expenses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     category_id UUID REFERENCES public.expense_categories(id) ON DELETE RESTRICT,
     amount NUMERIC(10,2) NOT NULL CHECK (amount > 0),
     description TEXT NOT NULL,
@@ -528,7 +533,7 @@ BEGIN
 
     -- F. Compute Final Totals (payment amount = total)
     v_total := v_subtotal;
-    v_sale_id := uuid_generate_v4();
+    v_sale_id := gen_random_uuid();
 
     -- Generate Unique Sequential Invoice Number (CW-2026-000001)
     v_invoice_num := 'CW-' || TO_CHAR(NOW(), 'YYYY') || '-' || LPAD(NEXTVAL('public.invoice_number_seq')::TEXT, 6, '0');
