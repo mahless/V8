@@ -393,7 +393,8 @@ CREATE OR REPLACE FUNCTION public.process_pos_sale(
     p_items JSONB, -- Array of [{type: 'SERVICE'|'PRODUCT', id: UUID, quantity: INT}]
     p_payment_method VARCHAR,
     p_notes TEXT DEFAULT NULL,
-    p_idempotency_key VARCHAR DEFAULT NULL
+    p_idempotency_key VARCHAR DEFAULT NULL,
+    p_discount_percent NUMERIC DEFAULT 0
 ) RETURNS JSONB 
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -415,6 +416,8 @@ DECLARE
     v_current_stock INT;
     v_item_total NUMERIC(10,2);
     v_subtotal NUMERIC(10,2) := 0.00;
+    v_discount_pct NUMERIC(5,2) := 0.00;
+    v_discount_amt NUMERIC(10,2) := 0.00;
     v_total NUMERIC(10,2) := 0.00;
 BEGIN
     -- 0. Authenticated Employee Resolution
@@ -531,8 +534,10 @@ BEGIN
         v_subtotal := v_subtotal + (v_db_price * v_item_qty);
     END LOOP;
 
-    -- F. Compute Final Totals (payment amount = total)
-    v_total := v_subtotal;
+    -- F. Compute Final Totals (with Discount calculation)
+    v_discount_pct := LEAST(100.0, GREATEST(0.0, COALESCE(p_discount_percent, 0.0)));
+    v_discount_amt := ROUND((v_subtotal * v_discount_pct) / 100.0, 2);
+    v_total := GREATEST(0.0, v_subtotal - v_discount_amt);
     v_sale_id := gen_random_uuid();
 
     -- Generate Unique Sequential Invoice Number (CW-2026-000001)
@@ -559,7 +564,7 @@ BEGIN
             p_vehicle_id, 
             v_auth_uid,
             v_subtotal, 
-            0.00, 
+            v_discount_amt, 
             v_total, 
             p_payment_method, 
             'COMPLETED', 

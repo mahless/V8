@@ -416,7 +416,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
   },
 
   // POS Sale Execution via Supabase Atomic RPC
-  createAtomicSale: async (vehicleId, rawItems, paymentMethod, notes, idempotencyKey) => {
+  createAtomicSale: async (vehicleId, rawItems, paymentMethod, notes, idempotencyKey, discountPercent = 0) => {
     const ik = idempotencyKey || `ik_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     if (isSupabaseConfigured && supabase) {
@@ -426,7 +426,8 @@ export const useDataStore = create<DataStore>((set, get) => ({
           p_items: rawItems,
           p_payment_method: paymentMethod,
           p_notes: notes || null,
-          p_idempotency_key: ik
+          p_idempotency_key: ik,
+          p_discount_percent: discountPercent || 0
         });
 
         if (error) {
