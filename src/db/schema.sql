@@ -357,6 +357,8 @@ CREATE POLICY "Expenses_Delete" ON public.expenses FOR DELETE USING (public.is_m
 -- ====================================================================
 -- 15. DERIVED VEHICLE STATISTICS (VIEW - Single Source of Truth)
 -- ====================================================================
+DROP VIEW IF EXISTS public.vehicles_with_stats CASCADE;
+
 CREATE OR REPLACE VIEW public.vehicles_with_stats AS
 SELECT 
     v.id,
@@ -366,12 +368,12 @@ SELECT
     v.driver_name,
     v.phone,
     v.notes,
-    COALESCE(v.last_rewarded_visit_count, 0) AS last_rewarded_visit_count,
     v.created_at,
     v.updated_at,
     COALESCE(s.visits_count, 0) AS visits_count,
     COALESCE(s.total_spent, 0.00) AS total_spent,
-    s.last_visit_at
+    s.last_visit_at,
+    COALESCE(v.last_rewarded_visit_count, 0) AS last_rewarded_visit_count
 FROM public.vehicles v
 LEFT JOIN (
     SELECT 
