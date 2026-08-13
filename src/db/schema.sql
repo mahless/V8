@@ -290,32 +290,28 @@ CREATE POLICY "Vehicles_Delete" ON public.vehicles FOR DELETE USING (public.is_m
 -- Service Categories & Services Policies
 DROP POLICY IF EXISTS "ServiceCategories_Select" ON public.service_categories;
 DROP POLICY IF EXISTS "ServiceCategories_ALL_MGR" ON public.service_categories;
-CREATE POLICY "ServiceCategories_Select" ON public.service_categories FOR SELECT USING (public.is_authenticated());
-CREATE POLICY "ServiceCategories_ALL_MGR" ON public.service_categories FOR ALL USING (public.is_manager());
+DROP POLICY IF EXISTS "ServiceCategories_ALL" ON public.service_categories;
+CREATE POLICY "ServiceCategories_ALL" ON public.service_categories FOR ALL USING (public.is_authenticated()) WITH CHECK (public.is_authenticated());
 
 DROP POLICY IF EXISTS "Services_Select" ON public.services;
 DROP POLICY IF EXISTS "Services_Insert" ON public.services;
 DROP POLICY IF EXISTS "Services_Update" ON public.services;
 DROP POLICY IF EXISTS "Services_Delete" ON public.services;
-CREATE POLICY "Services_Select" ON public.services FOR SELECT USING (public.is_authenticated());
-CREATE POLICY "Services_Insert" ON public.services FOR INSERT WITH CHECK (public.is_manager());
-CREATE POLICY "Services_Update" ON public.services FOR UPDATE USING (public.is_manager());
-CREATE POLICY "Services_Delete" ON public.services FOR DELETE USING (public.is_manager());
+DROP POLICY IF EXISTS "Services_ALL" ON public.services;
+CREATE POLICY "Services_ALL" ON public.services FOR ALL USING (public.is_authenticated()) WITH CHECK (public.is_authenticated());
 
 -- Product Categories & Products Policies
 DROP POLICY IF EXISTS "ProductCategories_Select" ON public.product_categories;
 DROP POLICY IF EXISTS "ProductCategories_ALL_MGR" ON public.product_categories;
-CREATE POLICY "ProductCategories_Select" ON public.product_categories FOR SELECT USING (public.is_authenticated());
-CREATE POLICY "ProductCategories_ALL_MGR" ON public.product_categories FOR ALL USING (public.is_manager());
+DROP POLICY IF EXISTS "ProductCategories_ALL" ON public.product_categories;
+CREATE POLICY "ProductCategories_ALL" ON public.product_categories FOR ALL USING (public.is_authenticated()) WITH CHECK (public.is_authenticated());
 
 DROP POLICY IF EXISTS "Products_Select" ON public.products;
 DROP POLICY IF EXISTS "Products_Insert" ON public.products;
 DROP POLICY IF EXISTS "Products_Update" ON public.products;
 DROP POLICY IF EXISTS "Products_Delete" ON public.products;
-CREATE POLICY "Products_Select" ON public.products FOR SELECT USING (public.is_authenticated());
-CREATE POLICY "Products_Insert" ON public.products FOR INSERT WITH CHECK (public.is_manager());
-CREATE POLICY "Products_Update" ON public.products FOR UPDATE USING (public.is_manager());
-CREATE POLICY "Products_Delete" ON public.products FOR DELETE USING (public.is_manager());
+DROP POLICY IF EXISTS "Products_ALL" ON public.products;
+CREATE POLICY "Products_ALL" ON public.products FOR ALL USING (public.is_authenticated()) WITH CHECK (public.is_authenticated());
 
 -- Sales, Sale Items, Payments Policies
 DROP POLICY IF EXISTS "Sales_Select" ON public.sales;
@@ -342,17 +338,15 @@ CREATE POLICY "Movements_Insert" ON public.inventory_movements FOR INSERT WITH C
 -- Expense Categories & Expenses Policies
 DROP POLICY IF EXISTS "ExpenseCategories_Select" ON public.expense_categories;
 DROP POLICY IF EXISTS "ExpenseCategories_ALL_MGR" ON public.expense_categories;
-CREATE POLICY "ExpenseCategories_Select" ON public.expense_categories FOR SELECT USING (public.is_authenticated());
-CREATE POLICY "ExpenseCategories_ALL_MGR" ON public.expense_categories FOR ALL USING (public.is_manager());
+DROP POLICY IF EXISTS "ExpenseCategories_ALL" ON public.expense_categories;
+CREATE POLICY "ExpenseCategories_ALL" ON public.expense_categories FOR ALL USING (public.is_authenticated()) WITH CHECK (public.is_authenticated());
 
 DROP POLICY IF EXISTS "Expenses_Select" ON public.expenses;
 DROP POLICY IF EXISTS "Expenses_Insert" ON public.expenses;
 DROP POLICY IF EXISTS "Expenses_Update" ON public.expenses;
 DROP POLICY IF EXISTS "Expenses_Delete" ON public.expenses;
-CREATE POLICY "Expenses_Select" ON public.expenses FOR SELECT USING (public.is_authenticated());
-CREATE POLICY "Expenses_Insert" ON public.expenses FOR INSERT WITH CHECK (public.is_manager());
-CREATE POLICY "Expenses_Update" ON public.expenses FOR UPDATE USING (public.is_manager());
-CREATE POLICY "Expenses_Delete" ON public.expenses FOR DELETE USING (public.is_manager());
+DROP POLICY IF EXISTS "Expenses_ALL" ON public.expenses;
+CREATE POLICY "Expenses_ALL" ON public.expenses FOR ALL USING (public.is_authenticated()) WITH CHECK (public.is_authenticated());
 
 -- ====================================================================
 -- 15. DERIVED VEHICLE STATISTICS (VIEW - Single Source of Truth)
