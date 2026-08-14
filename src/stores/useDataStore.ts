@@ -482,6 +482,9 @@ export const useDataStore = create<DataStore>((set, get) => ({
   // POS Sale Execution via Supabase Atomic RPC
   createAtomicSale: async (vehicleId, rawItems, paymentMethod, notes, idempotencyKey, discountPercent = 0) => {
     const ik = idempotencyKey || `ik_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const currentProf = get().currentProfile;
+    const empPrefix = currentProf ? `[الموظف: ${currentProf.full_name}] ` : '';
+    const fullNotes = empPrefix + (notes || '');
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -489,7 +492,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
           p_vehicle_id: vehicleId,
           p_items: rawItems,
           p_payment_method: paymentMethod,
-          p_notes: notes || null,
+          p_notes: fullNotes.trim() || null,
           p_idempotency_key: ik,
           p_discount_percent: discountPercent || 0
         });
@@ -500,6 +503,11 @@ export const useDataStore = create<DataStore>((set, get) => ({
         }
 
         if (data && data.success) {
+          // If profile exists, also try updating employee_id in sales row directly for reliability
+          if (currentProf?.id && data.sale_id) {
+            await supabase.from('sales').update({ employee_id: currentProf.id }).eq('id', data.sale_id);
+          }
+
           // Refresh store data from Supabase to sync vehicle stats, stock, and sales
           await get().fetchInitialData();
           return {
@@ -519,11 +527,15 @@ export const useDataStore = create<DataStore>((set, get) => ({
 
   // POS Sale Cancellation via Supabase Atomic RPC
   cancelAtomicSale: async (saleId, reason) => {
+    const currentProf = get().currentProfile;
+    const empName = currentProf ? currentProf.full_name : 'المدير العام';
+    const fullReason = `[إلغاء بواسطة الموظف: ${empName}] ${reason || 'إلغاء عملية البيع'}`;
+
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.rpc('cancel_pos_sale', {
           p_sale_id: saleId,
-          p_reason: reason || 'إلغاء عملية البيع'
+          p_reason: fullReason
         });
 
         if (error) {
@@ -548,13 +560,17 @@ export const useDataStore = create<DataStore>((set, get) => ({
   },
 
   addExpense: async (expenseData) => {
+    const currentProf = get().currentProfile;
+    const empName = currentProf ? currentProf.full_name : 'المدير العام';
+    const noteWithUser = `[الموظف: ${empName}] ${expenseData.description}`;
+
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase
         .from('expenses')
         .insert([{
           category_id: expenseData.category_id || null,
           amount: expenseData.amount,
-          description: expenseData.description
+          description: noteWithUser
         }])
         .select('*')
         .single();
@@ -582,7 +598,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
               unit_cost: prod.purchase_price,
               reference_type: 'EXPENSE',
               reference_id: data ? data.id : null,
-              notes: `استهلاك مصروفات: ${expenseData.description}`
+              notes: `[الموظف: ${empName}] استهلاك مصروفات: ${expenseData.description}`
             }]);
         }
       }

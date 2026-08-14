@@ -20,7 +20,7 @@ import {
 import { formatArabicDate } from '../../lib/utils';
 
 export const DashboardView: React.FC = () => {
-  const { sales, vehicles, products } = useDataStore();
+  const { sales, vehicles, products, currentRole } = useDataStore();
   const { setActiveTab, setActiveReceiptSaleId, setReceiptModalOpen } = useUIStore();
 
   // Pagination state for 10 items limit
@@ -123,7 +123,7 @@ export const DashboardView: React.FC = () => {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-blue-600" />
-                <CardTitle>أحدث عمليات الغسيل اليوم</CardTitle>
+                <CardTitle>أحدث عمليات اليوم</CardTitle>
               </div>
               <Badge variant="neutral" size="sm">
                 عرض {displayedSales.length} من {sales.length}
@@ -230,8 +230,14 @@ export const DashboardView: React.FC = () => {
                 {displayedLowStock.map((p) => (
                   <div
                     key={p.id}
-                    onClick={() => setActiveTab('inventory')}
-                    className="flex items-center justify-between p-3 rounded-xl bg-white border border-amber-200/80 shadow-2xs hover:bg-amber-50/50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (currentRole === 'MANAGER') {
+                        setActiveTab('inventory');
+                      }
+                    }}
+                    className={`flex items-center justify-between p-3 rounded-xl bg-white border border-amber-200/80 shadow-2xs transition-colors ${
+                      currentRole === 'MANAGER' ? 'hover:bg-amber-50/50 cursor-pointer' : ''
+                    }`}
                   >
                     <div>
                       <h5 className="text-xs font-bold text-slate-900">{p.name}</h5>
@@ -262,14 +268,16 @@ export const DashboardView: React.FC = () => {
               </div>
             )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setActiveTab('inventory')}
-              className="w-full mt-4 text-xs font-bold border-amber-200 text-amber-900 hover:bg-amber-100/50"
-            >
-              إدارة وتزويد المخزون
-            </Button>
+            {currentRole === 'MANAGER' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveTab('inventory')}
+                className="w-full mt-4 text-xs font-bold border-amber-200 text-amber-900 hover:bg-amber-100/50 cursor-pointer"
+              >
+                إدارة وتزويد المخزون
+              </Button>
+            )}
           </Card>
         </div>
       </div>

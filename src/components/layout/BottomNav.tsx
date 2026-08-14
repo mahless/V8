@@ -25,7 +25,7 @@ export const BottomNav: React.FC = () => {
 
   const allPrimaryMobileTabs: { id: NavigationTab; label: string; icon: React.ReactNode; isPrimary?: boolean; managerOnly?: boolean }[] = [
     { id: 'dashboard', label: 'الرئيسية', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { id: 'services', label: 'الخدمات', icon: <Wrench className="w-5 h-5" /> },
+    { id: 'services', label: 'الخدمات', icon: <Wrench className="w-5 h-5" />, managerOnly: true },
     { id: 'pos', label: 'بدء عملية جديدة', icon: <PlusCircle className="w-6 h-6" />, isPrimary: true },
     { id: 'inventory', label: 'المخزن', icon: <Package className="w-5 h-5" />, managerOnly: true },
   ];

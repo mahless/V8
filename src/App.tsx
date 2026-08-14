@@ -34,7 +34,7 @@ export default function App() {
   }, [fetchInitialData]);
 
   // Enforce role guard: if user is employee and on a manager-only tab, fallback to POS
-  const isManagerOnlyTab = ['inventory', 'expenses', 'reports', 'settings'].includes(activeTab);
+  const isManagerOnlyTab = ['services', 'inventory', 'expenses', 'reports', 'settings'].includes(activeTab);
 
   useEffect(() => {
     if (currentRole === 'EMPLOYEE' && isManagerOnlyTab) {

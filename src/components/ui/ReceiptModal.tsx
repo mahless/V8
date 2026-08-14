@@ -7,7 +7,7 @@ import { Printer, Sparkles } from 'lucide-react';
 import { formatArabicDate } from '../../lib/utils';
 
 export const ReceiptModal: React.FC = () => {
-  const { sales } = useDataStore();
+  const { sales, profiles } = useDataStore();
   const { isReceiptModalOpen, setReceiptModalOpen, activeReceiptSaleId } = useUIStore();
 
   const selectedSale = sales.find((s) => s.id === activeReceiptSaleId) || sales[0];

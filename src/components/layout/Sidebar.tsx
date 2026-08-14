@@ -28,7 +28,7 @@ export const Sidebar: React.FC = () => {
     { id: 'dashboard', label: 'الرئيسية', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'pos', label: 'بدء عملية جديدة', icon: <PlusCircle className="w-5 h-5 text-blue-600" />, isPrimary: true },
     { id: 'vehicles', label: 'السيارات والعملاء', icon: <Car className="w-5 h-5" /> },
-    { id: 'services', label: 'دليل الخدمات', icon: <Wrench className="w-5 h-5" /> },
+    { id: 'services', label: 'دليل الخدمات', icon: <Wrench className="w-5 h-5" />, managerOnly: true },
     { id: 'inventory', label: 'المخزن والمنتجات', icon: <Package className="w-5 h-5" />, managerOnly: true },
     { id: 'sales', label: 'سجل العمليات', icon: <ReceiptText className="w-5 h-5" /> },
     { id: 'expenses', label: 'المصروفات', icon: <Coins className="w-5 h-5" />, managerOnly: true },

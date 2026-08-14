@@ -11,7 +11,7 @@ import { Coins, Plus, Receipt, Package, CheckCircle2, Box, ChevronDown } from 'l
 import { formatArabicDate } from '../../lib/utils';
 
 export const ExpensesView: React.FC = () => {
-  const { expenses, expenseCategories, products, addExpense } = useDataStore();
+  const { expenses, expenseCategories, products, addExpense, currentRole } = useDataStore();
   const { showToast } = useUIStore();
 
   const [visibleExpensesCount, setVisibleExpensesCount] = useState(10);
@@ -178,34 +178,45 @@ export const ExpensesView: React.FC = () => {
           {expenses.length === 0 ? (
             <div className="py-8 text-center text-slate-400 text-xs">لا توجد مصروفات مسجلة حتى الآن</div>
           ) : (
-            displayedExpenses.map((exp) => (
-              <div
-                key={exp.id}
-                className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3"
-              >
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-slate-900">{exp.description}</span>
-                    {exp.category_name && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-amber-100 text-amber-900">
-                        {exp.category_name}
-                      </span>
-                    )}
-                    {exp.product_name && exp.quantity && (
-                      <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
-                        <Package className="w-3 h-3" />
-                        خصم مخزن ({exp.quantity})
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-mono block mt-1">
-                    {formatArabicDate(exp.created_at)}
-                  </span>
-                </div>
+            displayedExpenses.map((exp) => {
+              const empMatch = exp.description.match(/\[الموظف:\s*([^\]]+)\]/);
+              const empName = empMatch ? empMatch[1] : null;
+              const cleanDescription = exp.description.replace(/\[الموظف:\s*[^\]]+\]\s*/, '');
 
-                <PriceDisplay amount={exp.amount} size="md" className="text-amber-900 shrink-0" />
-              </div>
-            ))
+              return (
+                <div
+                  key={exp.id}
+                  className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-slate-900">{cleanDescription}</span>
+                      {currentRole === 'MANAGER' && empName && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                          👤 {empName}
+                        </span>
+                      )}
+                      {exp.category_name && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-amber-100 text-amber-900">
+                          {exp.category_name}
+                        </span>
+                      )}
+                      {exp.product_name && exp.quantity && (
+                        <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
+                          <Package className="w-3 h-3" />
+                          خصم مخزن ({exp.quantity})
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono block mt-1">
+                      {formatArabicDate(exp.created_at)}
+                    </span>
+                  </div>
+
+                  <PriceDisplay amount={exp.amount} size="md" className="text-amber-900 shrink-0" />
+                </div>
+              );
+            })
           )}
         </div>
 

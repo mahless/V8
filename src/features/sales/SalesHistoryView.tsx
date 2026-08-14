@@ -15,7 +15,7 @@ import {
 import { formatArabicDate } from '../../lib/utils';
 
 export const SalesHistoryView: React.FC = () => {
-  const { sales } = useDataStore();
+  const { sales, profiles, currentRole } = useDataStore();
   const {
     setReceiptModalOpen,
     setActiveReceiptSaleId,
@@ -84,10 +84,22 @@ export const SalesHistoryView: React.FC = () => {
                     </Badge>
                   </div>
 
-                  {/* السطر الثاني: اسم العميل */}
-                  <div className="text-xs font-bold text-slate-900 flex items-center">
-                    <span className="text-slate-400 font-normal text-[11px] ml-1">اسم العميل:</span>
-                    {sale.vehicle?.driver_name || 'سائق'}
+                  {/* السطر الثاني: اسم العميل والمنفذ (يظهر للمدير فقط) */}
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-3 flex-wrap">
+                    <div>
+                      <span className="text-slate-400 font-normal text-[11px] ml-1">اسم العميل:</span>
+                      {sale.vehicle?.driver_name || 'سائق'}
+                    </div>
+                    {currentRole === 'MANAGER' && (
+                      <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200/60 font-bold">
+                        👤 {
+                          profiles.find((p) => p.id === sale.employee_id)?.full_name ||
+                          (sale.notes && sale.notes.includes('[الموظف:')
+                            ? sale.notes.match(/\[الموظف:\s*([^\]]+)\]/)?.[1]
+                            : 'موظف')
+                        }
+                      </div>
+                    )}
                   </div>
 
                   {/* السطر الثالث: الخدمات المقدمة */}
