@@ -14,6 +14,7 @@ const SalesHistoryView = lazy(() => import('./features/sales/SalesHistoryView').
 const ExpensesView = lazy(() => import('./features/expenses/ExpensesView').then(m => ({ default: m.ExpensesView })));
 const ReportsView = lazy(() => import('./features/reports/ReportsView').then(m => ({ default: m.ReportsView })));
 const SettingsView = lazy(() => import('./features/settings/SettingsView').then(m => ({ default: m.SettingsView })));
+const LoginView = lazy(() => import('./features/auth/LoginView').then(m => ({ default: m.LoginView })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,7 +27,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   const { activeTab, setActiveTab } = useUIStore();
-  const { fetchInitialData, currentRole } = useDataStore();
+  const { fetchInitialData, currentRole, currentProfile, profiles } = useDataStore();
 
   useEffect(() => {
     fetchInitialData();
@@ -69,6 +70,23 @@ export default function App() {
         return <DashboardView />;
     }
   };
+
+  if (currentProfile === null && profiles.length > 0) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <Suspense fallback={
+          <div className="flex items-center justify-center min-h-screen bg-slate-900 text-white p-8">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs font-semibold text-slate-400">جاري تحميل شاشة الدخول...</p>
+            </div>
+          </div>
+        }>
+          <LoginView />
+        </Suspense>
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -271,7 +271,7 @@ export const SettingsView: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <h4 className="text-sm font-bold text-slate-900">{p.full_name}</h4>
                       <Badge variant={p.role === 'MANAGER' ? 'amber' : 'blue'} size="sm">
-                        {p.role === 'MANAGER' ? 'مدير نظام 👑' : 'موظف / كاشير 👤'}
+                        {p.role === 'MANAGER' ? 'مدير 👑' : 'موظف 👤'}
                       </Badge>
                       {!p.is_active && (
                         <Badge variant="red" size="sm">موقوف</Badge>
@@ -622,7 +622,7 @@ export const SettingsView: React.FC = () => {
                 }`}
               >
                 <UserCheck className="w-4 h-4" />
-                <span>موظف / كاشير</span>
+                <span>موظف 👤</span>
               </button>
 
               <button

@@ -34,8 +34,11 @@ interface DataStore {
   expenses: Expense[];
   profiles: Profile[];
   currentRole: UserRole;
+  currentProfile: Profile | null;
 
   setCurrentRole: (role: UserRole) => void;
+  loginWithPin: (profileId: string, pinCode: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => void;
   addEmployee: (profileData: { full_name: string; role: UserRole; phone?: string; pin_code?: string }) => Promise<void>;
   updateEmployeeRole: (id: string, role: UserRole) => Promise<void>;
   toggleEmployeeActive: (id: string) => Promise<void>;
@@ -104,8 +107,43 @@ export const useDataStore = create<DataStore>((set, get) => ({
   expenses: [],
   profiles: [],
   currentRole: 'MANAGER',
+  currentProfile: null,
 
   setCurrentRole: (role) => set({ currentRole: role }),
+
+  loginWithPin: async (profileId: string, pinCode: string) => {
+    const allProfiles = get().profiles;
+    const target = allProfiles.find((p) => p.id === profileId);
+
+    if (!target) {
+      return { success: false, error: 'الموظف غير موجود في النظام' };
+    }
+
+    if (!target.is_active) {
+      return { success: false, error: 'هذا الحساب موقوف حالياً، يرجى مراجعة المدير' };
+    }
+
+    const validPin = target.pin_code || '1234';
+    if (pinCode.trim() !== validPin.trim()) {
+      return { success: false, error: 'رمز الدخول (PIN) غير صحيح' };
+    }
+
+    localStorage.setItem('v8_active_employee_id', target.id);
+    set({
+      currentProfile: target,
+      currentRole: target.role
+    });
+
+    return { success: true };
+  },
+
+  logout: () => {
+    localStorage.removeItem('v8_active_employee_id');
+    set({
+      currentProfile: null,
+      currentRole: 'EMPLOYEE'
+    });
+  },
 
   fetchInitialData: async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -209,6 +247,10 @@ export const useDataStore = create<DataStore>((set, get) => ({
         };
       });
 
+      const loadedProfiles = profilesData || [];
+      const savedEmpId = localStorage.getItem('v8_active_employee_id');
+      const activeProfile = loadedProfiles.find((p) => p.id === savedEmpId && p.is_active) || null;
+
       set({
         serviceCategories: sCategories || [],
         services: servicesData || [],
@@ -220,7 +262,9 @@ export const useDataStore = create<DataStore>((set, get) => ({
         inventoryMovements: movementsData || [],
         expenseCategories: eCategories || [],
         expenses: expensesData || [],
-        profiles: profilesData || []
+        profiles: loadedProfiles,
+        currentProfile: activeProfile,
+        currentRole: activeProfile ? activeProfile.role : get().currentRole
       });
     } catch (err) {
       console.error('Error fetching initial data from Supabase:', err);
@@ -698,8 +742,11 @@ export const useDataStore = create<DataStore>((set, get) => ({
       }
 
       if (error) {
-        console.warn('Supabase RLS/Schema warning on addEmployee. Falling back to local state:', error.message);
-      } else if (data) {
+        console.error('Failed to add employee to Supabase:', error);
+        throw new Error(error.message);
+      }
+
+      if (data) {
         set({ profiles: [data, ...get().profiles] });
         return;
       }
@@ -725,7 +772,8 @@ export const useDataStore = create<DataStore>((set, get) => ({
         .eq('id', id);
 
       if (error) {
-        console.warn('Supabase RLS error on updateEmployeeRole. Updated locally:', error.message);
+        console.error('Failed to update employee role in Supabase:', error);
+        throw new Error(error.message);
       }
     }
     set({
@@ -745,7 +793,8 @@ export const useDataStore = create<DataStore>((set, get) => ({
         .eq('id', id);
 
       if (error) {
-        console.warn('Supabase RLS error on toggleEmployeeActive. Updated locally:', error.message);
+        console.error('Failed to toggle employee active state in Supabase:', error);
+        throw new Error(error.message);
       }
     }
 
@@ -758,7 +807,8 @@ export const useDataStore = create<DataStore>((set, get) => ({
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase.from('profiles').delete().eq('id', id);
       if (error) {
-        console.warn('Supabase RLS error on deleteEmployee. Deleted locally:', error.message);
+        console.error('Failed to delete employee in Supabase:', error);
+        throw new Error(error.message);
       }
     }
     set({ profiles: get().profiles.filter((p) => p.id !== id) });

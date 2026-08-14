@@ -1,5 +1,6 @@
 import React from 'react';
 import { useUIStore } from '../../stores/useUIStore';
+import { useDataStore } from '../../stores/useDataStore';
 import { NavigationTab } from '../../types';
 import {
   LayoutDashboard,
@@ -13,14 +14,15 @@ import {
   Settings,
   Sparkles,
   ChevronLeft,
+  LogOut,
+  UserCheck,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-import { useDataStore } from '../../stores/useDataStore';
-
 export const Sidebar: React.FC = () => {
   const { activeTab, setActiveTab } = useUIStore();
-  const { currentRole } = useDataStore();
+  const { currentRole, currentProfile, logout } = useDataStore();
 
   const allNavItems: { id: NavigationTab; label: string; icon: React.ReactNode; isPrimary?: boolean; managerOnly?: boolean }[] = [
     { id: 'dashboard', label: 'الرئيسية', icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -82,17 +84,35 @@ export const Sidebar: React.FC = () => {
         })}
       </div>
 
-      {/* Quick Footer */}
-      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">
-            🟢
+      {/* Quick Footer / User Profile & Logout */}
+      <div className="p-3.5 border-t border-slate-100 bg-slate-50/70 space-y-2.5">
+        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white border border-slate-100">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+            currentRole === 'MANAGER' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+          }`}>
+            {currentRole === 'MANAGER' ? <ShieldCheck className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
           </div>
-          <div className="flex-1">
-            <p className="text-xs font-bold text-slate-800">حالة النظام</p>
-            <p className="text-[10px] text-emerald-600 font-semibold">متصل بقاعدة البيانات</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-slate-800 truncate">
+              {currentProfile ? currentProfile.full_name : 'مدير النظام الافتراضي'}
+            </p>
+            <p className="text-[10px] text-slate-400 font-semibold truncate">
+              {currentRole === 'MANAGER' ? 'مدير 👑' : 'موظف 👤'}
+            </p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            logout();
+            setActiveTab('pos');
+          }}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white border border-rose-200 transition-all cursor-pointer shadow-2xs group"
+        >
+          <LogOut className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+          <span>تسجيل الخروج</span>
+        </button>
       </div>
     </aside>
   );
