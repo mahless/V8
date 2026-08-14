@@ -10,6 +10,7 @@ import { PriceDisplay } from '../../components/ui/PriceDisplay';
 import {
   Receipt,
   Search,
+  ChevronDown,
 } from 'lucide-react';
 import { formatArabicDate } from '../../lib/utils';
 
@@ -21,6 +22,7 @@ export const SalesHistoryView: React.FC = () => {
   } = useUIStore();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [visibleSalesCount, setVisibleSalesCount] = useState(10);
 
   const filteredSales = sales.filter((s) => {
     if (!searchQuery.trim()) return true;
@@ -33,6 +35,8 @@ export const SalesHistoryView: React.FC = () => {
     );
   });
 
+  const displayedSales = filteredSales.slice(0, visibleSalesCount);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -42,9 +46,6 @@ export const SalesHistoryView: React.FC = () => {
             <Receipt className="w-6 h-6 text-blue-600" />
             <span>سجل العمليات والفواتير</span>
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            عرض كافة العمليات المكتملة والمحصلة بالكامل، طباعة الإيصال الحراري 80mm أو A4.
-          </p>
         </div>
 
         <div className="w-full sm:w-72">
@@ -65,7 +66,7 @@ export const SalesHistoryView: React.FC = () => {
               لا توجد عمليات مطابقة لـ "{searchQuery}"
             </div>
           ) : (
-            filteredSales.map((sale) => (
+            displayedSales.map((sale) => (
               <div
                 key={sale.id}
                 onClick={() => {
@@ -117,6 +118,21 @@ export const SalesHistoryView: React.FC = () => {
             ))
           )}
         </div>
+
+        {/* Show More Button */}
+        {filteredSales.length > visibleSalesCount && (
+          <div className="text-center pt-4 border-t border-slate-100 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVisibleSalesCount((prev) => prev + 10)}
+              className="text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 w-full sm:w-auto cursor-pointer"
+              icon={<ChevronDown className="w-4 h-4 text-blue-600" />}
+            >
+              عرض المزيد ({filteredSales.length - visibleSalesCount} عمليات أخرى)
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );

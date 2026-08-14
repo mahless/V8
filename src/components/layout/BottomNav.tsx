@@ -23,7 +23,7 @@ export const BottomNav: React.FC = () => {
   const primaryMobileTabs: { id: NavigationTab; label: string; icon: React.ReactNode; isPrimary?: boolean }[] = [
     { id: 'dashboard', label: 'الرئيسية', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'services', label: 'الخدمات', icon: <Wrench className="w-5 h-5" /> },
-    { id: 'pos', label: 'عملية جديدة', icon: <PlusCircle className="w-6 h-6" />, isPrimary: true },
+    { id: 'pos', label: 'بدء عملية جديدة', icon: <PlusCircle className="w-6 h-6" />, isPrimary: true },
     { id: 'inventory', label: 'المخزن', icon: <Package className="w-5 h-5" /> },
   ];
 

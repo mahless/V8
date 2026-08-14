@@ -138,9 +138,6 @@ export const ServicesView: React.FC = () => {
             <Wrench className="w-6 h-6 text-blue-600" />
             <span>دليل الخدمات والصيانة</span>
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            إدارة جميع الخدمات المقدمة وتحديد أسعارها وإضافتها لنقطة البيع
-          </p>
         </div>
 
         <div className="flex items-center gap-3 shrink-0">

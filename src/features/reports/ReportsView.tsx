@@ -108,9 +108,6 @@ export const ReportsView: React.FC = () => {
             <BarChart3 className="w-6 h-6 text-blue-600" />
             <span>التقارير والأداء المالي</span>
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            تحليل الإيرادات والمصروفات، أعلى الخدمات إنجازاً، وتوزيع طرق الدفع.
-          </p>
         </div>
 
         {/* Dynamic Period Filter Selector */}

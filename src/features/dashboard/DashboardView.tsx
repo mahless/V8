@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useDataStore } from '../../stores/useDataStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -13,9 +13,9 @@ import {
   PlusCircle,
   AlertTriangle,
   Clock,
-  Sparkles,
   ArrowUpRight,
   PackageCheck,
+  ChevronDown,
 } from 'lucide-react';
 import { formatArabicDate } from '../../lib/utils';
 
@@ -23,18 +23,23 @@ export const DashboardView: React.FC = () => {
   const { sales, vehicles, products } = useDataStore();
   const { setActiveTab, setActiveReceiptSaleId, setReceiptModalOpen } = useUIStore();
 
+  // Pagination state for 10 items limit
+  const [visibleSalesCount, setVisibleSalesCount] = useState(10);
+  const [visibleLowStockCount, setVisibleLowStockCount] = useState(10);
+
   // Metrics Calculations
-  const todaySales = sales.slice(0, 10);
   const totalTodayRevenue = sales.reduce((sum, s) => sum + s.total, 0);
   const totalVehiclesCount = vehicles.length;
   const totalSalesCount = sales.length;
-  const avgTicket = totalSalesCount > 0 ? totalTodayRevenue / totalSalesCount : 0;
 
   // Low stock products
   const lowStockProducts = products.filter((p) => p.current_stock <= p.minimum_stock);
 
+  const displayedSales = sales.slice(0, visibleSalesCount);
+  const displayedLowStock = lowStockProducts.slice(0, visibleLowStockCount);
+
   return (
-    <div className="space-[#0f172a] space-y-6">
+    <div className="space-y-6">
       {/* Welcome Banner */}
       <div className="flex items-center justify-between gap-4 bg-gradient-to-l from-blue-600 via-blue-700 to-indigo-800 text-white p-5 sm:p-6 rounded-3xl shadow-lg shadow-blue-600/15 relative overflow-hidden">
         <div className="relative z-10">
@@ -72,7 +77,7 @@ export const DashboardView: React.FC = () => {
             <PriceDisplay amount={totalTodayRevenue} size="xl" />
             <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 mt-1">
               <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>+12.5% مقارنة بالأمس</span>
+              <span>متابعة مباشرة للتحصيل اليومي</span>
             </div>
           </div>
         </Card>
@@ -120,14 +125,9 @@ export const DashboardView: React.FC = () => {
                 <Clock className="w-5 h-5 text-blue-600" />
                 <CardTitle>أحدث عمليات الغسيل اليوم</CardTitle>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setActiveTab('sales')}
-                className="text-xs text-blue-600 hover:text-blue-700 font-bold"
-              >
-                عرض كل الفواتير ({sales.length})
-              </Button>
+              <Badge variant="neutral" size="sm">
+                عرض {displayedSales.length} من {sales.length}
+              </Badge>
             </CardHeader>
 
             <div className="space-y-3">
@@ -136,7 +136,7 @@ export const DashboardView: React.FC = () => {
                   لا توجد عمليات اليوم، ابدأ عملية جديدة الآن!
                 </div>
               ) : (
-                sales.map((sale) => (
+                displayedSales.map((sale) => (
                   <div
                     key={sale.id}
                     onClick={() => {
@@ -188,6 +188,21 @@ export const DashboardView: React.FC = () => {
                 ))
               )}
             </div>
+
+            {/* Show More Button */}
+            {sales.length > visibleSalesCount && (
+              <div className="text-center pt-4 border-t border-slate-100 mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setVisibleSalesCount((prev) => prev + 10)}
+                  className="text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 w-full sm:w-auto cursor-pointer"
+                  icon={<ChevronDown className="w-4 h-4 text-blue-600" />}
+                >
+                  عرض المزيد ({sales.length - visibleSalesCount} عمليات أخرى)
+                </Button>
+              </div>
+            )}
           </Card>
         </div>
 
@@ -212,7 +227,7 @@ export const DashboardView: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-2.5">
-                {lowStockProducts.map((p) => (
+                {displayedLowStock.map((p) => (
                   <div
                     key={p.id}
                     onClick={() => setActiveTab('inventory')}
@@ -229,6 +244,21 @@ export const DashboardView: React.FC = () => {
                     </Badge>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Show More Button for Low Stock */}
+            {lowStockProducts.length > visibleLowStockCount && (
+              <div className="text-center pt-3 border-t border-amber-100 mt-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setVisibleLowStockCount((prev) => prev + 10)}
+                  className="text-xs font-bold text-amber-900 border-amber-200 hover:bg-amber-100/60 w-full cursor-pointer"
+                  icon={<ChevronDown className="w-4 h-4 text-amber-700" />}
+                >
+                  عرض المزيد ({lowStockProducts.length - visibleLowStockCount} منتجات أخرى)
+                </Button>
               </div>
             )}
 

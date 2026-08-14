@@ -213,14 +213,8 @@ export const POSView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <span>عملية غسيل جديدة POS</span>
-            <Badge variant="blue" size="sm">
-              فوري 2026
-            </Badge>
+            <span>بدء عملية جديدة</span>
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            اختر السيارة والخدمات المطلوبة ثم قم بتأكيد الدفع الكامل لإصدار الفاتورة فوراً.
-          </p>
         </div>
 
         {cartItems.length > 0 && (

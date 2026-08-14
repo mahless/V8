@@ -17,6 +17,7 @@ import {
   History,
   AlertTriangle,
   Layers,
+  ChevronDown,
 } from 'lucide-react';
 import { formatArabicDate } from '../../lib/utils';
 import { Product } from '../../types';
@@ -27,6 +28,9 @@ export const InventoryView: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
+
+  const [visibleProductsCount, setVisibleProductsCount] = useState(10);
+  const [visibleMovementsCount, setVisibleMovementsCount] = useState(10);
 
   // Modals
   const [isNewProdModalOpen, setIsNewProdModalOpen] = useState(false);
@@ -116,9 +120,6 @@ export const InventoryView: React.FC = () => {
             <Package className="w-6 h-6 text-blue-600" />
             <span>إدارة المخزن والمنتجات</span>
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            متابعة البضائع والأكسسوارات وقطع الغيار (أدوات غسيل، إكسسوارات، قطع غيار)
-          </p>
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
@@ -165,7 +166,7 @@ export const InventoryView: React.FC = () => {
 
       {/* Product Cards Grid (Modern SaaS POS Product Style) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filteredProducts.map((p) => {
+        {filteredProducts.slice(0, visibleProductsCount).map((p) => {
           let stockStatus: 'GREEN' | 'AMBER' | 'RED' = 'GREEN';
           let statusText = '🟢 متوفر';
 
@@ -249,6 +250,21 @@ export const InventoryView: React.FC = () => {
         })}
       </div>
 
+      {/* Show More Products Button */}
+      {filteredProducts.length > visibleProductsCount && (
+        <div className="text-center pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setVisibleProductsCount((prev) => prev + 10)}
+            className="text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 w-full sm:w-auto cursor-pointer"
+            icon={<ChevronDown className="w-4 h-4 text-blue-600" />}
+          >
+            عرض المزيد ({filteredProducts.length - visibleProductsCount} منتجات أخرى)
+          </Button>
+        </div>
+      )}
+
       {/* Inventory Movements Log */}
       <Card className="mt-8">
         <CardHeader>
@@ -257,12 +273,12 @@ export const InventoryView: React.FC = () => {
             <CardTitle>سجل حركات المخزن الأخيرة</CardTitle>
           </div>
           <Badge variant="neutral" size="sm">
-            {inventoryMovements.length} حركات
+            عرض {Math.min(visibleMovementsCount, inventoryMovements.length)} من {inventoryMovements.length}
           </Badge>
         </CardHeader>
 
         <div className="space-y-2.5">
-          {inventoryMovements.map((mov) => (
+          {inventoryMovements.slice(0, visibleMovementsCount).map((mov) => (
             <div
               key={mov.id}
               className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3 text-xs"
@@ -302,6 +318,21 @@ export const InventoryView: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {/* Show More Inventory Movements Button */}
+        {inventoryMovements.length > visibleMovementsCount && (
+          <div className="text-center pt-4 border-t border-slate-100 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVisibleMovementsCount((prev) => prev + 10)}
+              className="text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 w-full sm:w-auto cursor-pointer"
+              icon={<ChevronDown className="w-4 h-4 text-blue-600" />}
+            >
+              عرض المزيد ({inventoryMovements.length - visibleMovementsCount} حركات أخرى)
+            </Button>
+          </div>
+        )}
       </Card>
 
       {/* Modal: New Product */}

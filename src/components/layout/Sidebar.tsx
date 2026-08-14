@@ -21,7 +21,7 @@ export const Sidebar: React.FC = () => {
 
   const navItems: { id: NavigationTab; label: string; icon: React.ReactNode; isPrimary?: boolean }[] = [
     { id: 'dashboard', label: 'الرئيسية', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { id: 'pos', label: 'عملية جديدة POS', icon: <PlusCircle className="w-5 h-5 text-blue-600" />, isPrimary: true },
+    { id: 'pos', label: 'بدء عملية جديدة', icon: <PlusCircle className="w-5 h-5 text-blue-600" />, isPrimary: true },
     { id: 'vehicles', label: 'السيارات والعملاء', icon: <Car className="w-5 h-5" /> },
     { id: 'services', label: 'دليل الخدمات', icon: <Wrench className="w-5 h-5" /> },
     { id: 'inventory', label: 'المخزن والمنتجات', icon: <Package className="w-5 h-5" /> },
@@ -40,7 +40,7 @@ export const Sidebar: React.FC = () => {
             V8&nbsp;STANCE
           </h1>
           <span className="text-[10px] font-bold text-slate-400 block mt-0.5">
-            نظام إدارة المبيعات والخدمات
+            مركز خدمة و عناية بالسيارات
           </span>
         </div>
       </div>

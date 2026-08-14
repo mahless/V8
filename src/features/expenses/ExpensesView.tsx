@@ -4,15 +4,17 @@ import { useUIStore } from '../../stores/useUIStore';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Badge } from '../../components/ui/Badge';
 import { PriceDisplay } from '../../components/ui/PriceDisplay';
 import { Modal } from '../../components/ui/Modal';
-import { Coins, Plus, Receipt, Package, CheckCircle2, Box } from 'lucide-react';
+import { Coins, Plus, Receipt, Package, CheckCircle2, Box, ChevronDown } from 'lucide-react';
 import { formatArabicDate } from '../../lib/utils';
 
 export const ExpensesView: React.FC = () => {
   const { expenses, expenseCategories, products, addExpense } = useDataStore();
   const { showToast } = useUIStore();
 
+  const [visibleExpensesCount, setVisibleExpensesCount] = useState(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categoryId, setCategoryId] = useState(expenseCategories[0]?.id || '');
@@ -21,6 +23,8 @@ export const ExpensesView: React.FC = () => {
   const [quantity, setQuantity] = useState<number>(1);
   const [amount, setAmount] = useState<number>(0);
   const [description, setDescription] = useState('');
+
+  const displayedExpenses = expenses.slice(0, visibleExpensesCount);
 
   const currentCategory = expenseCategories.find((c) => c.id === categoryId);
   const selectedProduct = products.find((p) => p.id === selectedProductId);
@@ -139,9 +143,6 @@ export const ExpensesView: React.FC = () => {
             <Coins className="w-6 h-6 text-amber-600" />
             <span>إدارة المصروفات</span>
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            تسجيل مصروفات التشغيل، خصم منتجات المخزن بسعر التكلفة، ومتابعة القيد المالي.
-          </p>
         </div>
 
         <Button onClick={handleOpenModal} icon={<Plus className="w-4 h-4" />}>
@@ -168,13 +169,16 @@ export const ExpensesView: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>سجل المصروفات المسجلة</CardTitle>
+          <Badge variant="amber" size="sm">
+            عرض {displayedExpenses.length} من {expenses.length}
+          </Badge>
         </CardHeader>
 
         <div className="space-y-2.5">
           {expenses.length === 0 ? (
             <div className="py-8 text-center text-slate-400 text-xs">لا توجد مصروفات مسجلة حتى الآن</div>
           ) : (
-            expenses.map((exp) => (
+            displayedExpenses.map((exp) => (
               <div
                 key={exp.id}
                 className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3"
@@ -204,6 +208,21 @@ export const ExpensesView: React.FC = () => {
             ))
           )}
         </div>
+
+        {/* Show More Button */}
+        {expenses.length > visibleExpensesCount && (
+          <div className="text-center pt-4 border-t border-slate-100 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVisibleExpensesCount((prev) => prev + 10)}
+              className="text-xs font-bold text-amber-900 border-amber-200 hover:bg-amber-50 w-full sm:w-auto cursor-pointer"
+              icon={<ChevronDown className="w-4 h-4 text-amber-700" />}
+            >
+              عرض المزيد ({expenses.length - visibleExpensesCount} مصروفات أخرى)
+            </Button>
+          </div>
+        )}
       </Card>
 
       {/* Modal: New Expense */}

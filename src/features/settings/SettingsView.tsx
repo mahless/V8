@@ -169,9 +169,6 @@ export const SettingsView: React.FC = () => {
             <Settings className="w-6 h-6 text-blue-600" />
             <span>إعدادات النظام وإدارة الأقسام</span>
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            إدارة وإنشاء وحذف أقسام الخدمات والمنتجات وبنود المصروفات
-          </p>
         </div>
       </div>
 

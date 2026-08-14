@@ -21,6 +21,7 @@ import {
   Gift,
   Star,
   CheckCircle2,
+  ChevronDown,
 } from 'lucide-react';
 import {
   formatArabicDate,
@@ -39,6 +40,9 @@ export const VehiclesView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'all' | 'vip'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProfileVehicle, setSelectedProfileVehicle] = useState<Vehicle | null>(vehicles[0] || null);
+
+  const [visibleVehiclesCount, setVisibleVehiclesCount] = useState(10);
+  const [visibleVehicleHistoryCount, setVisibleVehicleHistoryCount] = useState(10);
 
   // New Vehicle Modal State
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
@@ -81,7 +85,7 @@ export const VehiclesView: React.FC = () => {
 
     if (!validatePlateLetters(letters)) errs.letters = 'أدخل من 1 إلى 4 حروف صحيحة (مثال: س ب ج)';
     if (!validatePlateNumbers(numbers)) errs.numbers = 'أدخل أرقام صحيحة (مثال: 1234)';
-    if (!driver.trim()) errs.driver = 'اسم السائق مطلوب';
+    if (!driver.trim()) errs.driver = 'اسم العميل مطلوب';
     if (!validatePhone(phone)) errs.phone = 'رقم الهاتف 11 رقم (مثال: 01012345678)';
 
     if (Object.keys(errs).length > 0) {
@@ -150,9 +154,6 @@ export const VehiclesView: React.FC = () => {
             <Car className="w-6 h-6 text-blue-600" />
             <span>سجل السيارات والعملاء</span>
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            البحث في قاعدة بيانات السيارات، معرفة عدد الزيارات، ومكافآت العملاء المميزين (10 زيارات+).
-          </p>
         </div>
 
         <Button
@@ -223,7 +224,7 @@ export const VehiclesView: React.FC = () => {
                     : `لا توجد نتائج مطابقة لـ "${searchQuery}"`}
                 </div>
               ) : (
-                filteredVehicles.map((v) => {
+                filteredVehicles.slice(0, visibleVehiclesCount).map((v) => {
                   const isSelected = selectedProfileVehicle?.id === v.id;
                   const eligibleVisits = getVipEligibleVisits(v);
                   const isVip = eligibleVisits >= 10;
@@ -272,6 +273,21 @@ export const VehiclesView: React.FC = () => {
                     </div>
                   );
                 })
+              )}
+
+              {/* Show More Vehicles Button */}
+              {filteredVehicles.length > visibleVehiclesCount && (
+                <div className="text-center pt-3 border-t border-slate-100 mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setVisibleVehiclesCount((prev) => prev + 10)}
+                    className="text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 w-full cursor-pointer"
+                    icon={<ChevronDown className="w-4 h-4 text-blue-600" />}
+                  >
+                    عرض المزيد ({filteredVehicles.length - visibleVehiclesCount} سيارات أخرى)
+                  </Button>
+                </div>
               )}
             </div>
           </Card>
@@ -379,7 +395,7 @@ export const VehiclesView: React.FC = () => {
                       لا توجد فواتير سابقة مسجلة لهذه السيارة حتى الآن.
                     </div>
                   ) : (
-                    vehicleSalesHistory.map((s) => (
+                    vehicleSalesHistory.slice(0, visibleVehicleHistoryCount).map((s) => (
                       <div key={s.id} className="relative pl-4 border-r-2 border-blue-500 pr-4 py-1">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -401,6 +417,21 @@ export const VehiclesView: React.FC = () => {
                         </div>
                       </div>
                     ))
+                  )}
+
+                  {/* Show More Vehicle History Button */}
+                  {vehicleSalesHistory.length > visibleVehicleHistoryCount && (
+                    <div className="text-center pt-3 border-t border-slate-100 mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setVisibleVehicleHistoryCount((prev) => prev + 10)}
+                        className="text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 w-full cursor-pointer"
+                        icon={<ChevronDown className="w-4 h-4 text-blue-600" />}
+                      >
+                        عرض المزيد ({vehicleSalesHistory.length - visibleVehicleHistoryCount} فواتير أخرى)
+                      </Button>
+                    </div>
                   )}
                 </div>
               </Card>
