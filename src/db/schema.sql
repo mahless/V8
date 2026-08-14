@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     full_name VARCHAR(100) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'EMPLOYEE' CHECK (role IN ('MANAGER', 'EMPLOYEE')),
+    phone VARCHAR(20),
+    pin_code VARCHAR(10) DEFAULT '1234',
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -271,10 +273,8 @@ DROP POLICY IF EXISTS "Profiles_Select" ON public.profiles;
 DROP POLICY IF EXISTS "Profiles_Insert" ON public.profiles;
 DROP POLICY IF EXISTS "Profiles_Update" ON public.profiles;
 DROP POLICY IF EXISTS "Profiles_Delete" ON public.profiles;
-CREATE POLICY "Profiles_Select" ON public.profiles FOR SELECT USING (public.is_authenticated());
-CREATE POLICY "Profiles_Insert" ON public.profiles FOR INSERT WITH CHECK (public.is_manager());
-CREATE POLICY "Profiles_Update" ON public.profiles FOR UPDATE USING (public.is_manager());
-CREATE POLICY "Profiles_Delete" ON public.profiles FOR DELETE USING (public.is_manager());
+DROP POLICY IF EXISTS "Profiles_ALL" ON public.profiles;
+CREATE POLICY "Profiles_ALL" ON public.profiles FOR ALL USING (public.is_authenticated()) WITH CHECK (public.is_authenticated());
 
 -- Settings Policies
 DROP POLICY IF EXISTS "Settings_Select" ON public.settings;

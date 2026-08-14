@@ -25,14 +25,27 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
-  const { activeTab } = useUIStore();
-  const fetchInitialData = useDataStore((state) => state.fetchInitialData);
+  const { activeTab, setActiveTab } = useUIStore();
+  const { fetchInitialData, currentRole } = useDataStore();
 
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
 
+  // Enforce role guard: if user is employee and on a manager-only tab, fallback to POS
+  const isManagerOnlyTab = ['inventory', 'expenses', 'reports', 'settings'].includes(activeTab);
+
+  useEffect(() => {
+    if (currentRole === 'EMPLOYEE' && isManagerOnlyTab) {
+      setActiveTab('pos');
+    }
+  }, [currentRole, activeTab, isManagerOnlyTab, setActiveTab]);
+
   const renderActiveTab = () => {
+    if (currentRole === 'EMPLOYEE' && isManagerOnlyTab) {
+      return <POSView />;
+    }
+
     switch (activeTab) {
       case 'dashboard':
         return <DashboardView />;

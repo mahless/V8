@@ -11,7 +11,9 @@ import {
   InventoryMovement, 
   ExpenseCategory, 
   Expense,
-  PaymentMethod
+  PaymentMethod,
+  Profile,
+  UserRole
 } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
 
@@ -30,6 +32,14 @@ interface DataStore {
   inventoryMovements: InventoryMovement[];
   expenseCategories: ExpenseCategory[];
   expenses: Expense[];
+  profiles: Profile[];
+  currentRole: UserRole;
+
+  setCurrentRole: (role: UserRole) => void;
+  addEmployee: (profileData: { full_name: string; role: UserRole; phone?: string; pin_code?: string }) => Promise<void>;
+  updateEmployeeRole: (id: string, role: UserRole) => Promise<void>;
+  toggleEmployeeActive: (id: string) => Promise<void>;
+  deleteEmployee: (id: string) => Promise<void>;
 
   // Fetch Action
   fetchInitialData: () => Promise<void>;
@@ -92,6 +102,10 @@ export const useDataStore = create<DataStore>((set, get) => ({
   inventoryMovements: [],
   expenseCategories: [],
   expenses: [],
+  profiles: [],
+  currentRole: 'MANAGER',
+
+  setCurrentRole: (role) => set({ currentRole: role }),
 
   fetchInitialData: async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -101,7 +115,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      // 1. Fetch Categories & Services
+      // 1. Fetch Categories, Services, Employees & Data
       const [
         { data: sCategories },
         { data: servicesData },
@@ -113,7 +127,8 @@ export const useDataStore = create<DataStore>((set, get) => ({
         { data: paymentsData },
         { data: movementsData },
         { data: eCategories },
-        { data: expensesData }
+        { data: expensesData },
+        { data: profilesData }
       ] = await Promise.all([
         supabase.from('service_categories').select('*').order('name'),
         supabase.from('services').select('*').order('name'),
@@ -125,7 +140,8 @@ export const useDataStore = create<DataStore>((set, get) => ({
         supabase.from('payments').select('*').order('created_at', { ascending: false }),
         supabase.from('inventory_movements').select('*').order('created_at', { ascending: false }),
         supabase.from('expense_categories').select('*').order('name'),
-        supabase.from('expenses').select('*').order('created_at', { ascending: false })
+        supabase.from('expenses').select('*').order('created_at', { ascending: false }),
+        supabase.from('profiles').select('*').order('created_at', { ascending: false })
       ]);
 
       const formattedVehicles: Vehicle[] = (vehiclesData || []).map((v) => ({
@@ -203,7 +219,8 @@ export const useDataStore = create<DataStore>((set, get) => ({
         payments: paymentsData || [],
         inventoryMovements: movementsData || [],
         expenseCategories: eCategories || [],
-        expenses: expensesData || []
+        expenses: expensesData || [],
+        profiles: profilesData || []
       });
     } catch (err) {
       console.error('Error fetching initial data from Supabase:', err);
@@ -644,6 +661,93 @@ export const useDataStore = create<DataStore>((set, get) => ({
         v.id === vehicleId ? { ...v, last_rewarded_visit_count: currentVisits } : v
       ),
     });
+  },
+
+  addEmployee: async (profileData) => {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert([{
+          full_name: profileData.full_name,
+          role: profileData.role,
+          phone: profileData.phone || null,
+          pin_code: profileData.pin_code || '1234',
+          is_active: true
+        }])
+        .select('*')
+        .single();
+
+      if (error) {
+        console.error('Failed to add employee to Supabase:', error);
+        throw new Error(error.message);
+      }
+
+      if (data) {
+        set({ profiles: [data, ...get().profiles] });
+        return;
+      }
+    }
+
+    const mockProfile: Profile = {
+      id: `prof_${Date.now()}`,
+      full_name: profileData.full_name,
+      role: profileData.role,
+      phone: profileData.phone,
+      pin_code: profileData.pin_code || '1234',
+      is_active: true,
+      created_at: new Date().toISOString()
+    };
+    set({ profiles: [mockProfile, ...get().profiles] });
+  },
+
+  updateEmployeeRole: async (id, role) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Failed to update employee role in Supabase:', error);
+        throw new Error(error.message);
+      }
+    }
+    set({
+      profiles: get().profiles.map((p) => (p.id === id ? { ...p, role } : p))
+    });
+  },
+
+  toggleEmployeeActive: async (id) => {
+    const target = get().profiles.find((p) => p.id === id);
+    if (!target) return;
+    const nextState = !target.is_active;
+
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: nextState, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Failed to toggle employee active state in Supabase:', error);
+        throw new Error(error.message);
+      }
+    }
+
+    set({
+      profiles: get().profiles.map((p) => (p.id === id ? { ...p, is_active: nextState } : p))
+    });
+  },
+
+  deleteEmployee: async (id) => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('profiles').delete().eq('id', id);
+      if (error) {
+        console.error('Failed to delete employee in Supabase:', error);
+        throw new Error(error.message);
+      }
+    }
+    set({ profiles: get().profiles.filter((p) => p.id !== id) });
   },
 
   searchVehicles: (query) => {

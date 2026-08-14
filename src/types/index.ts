@@ -1,3 +1,16 @@
+export type UserRole = 'MANAGER' | 'EMPLOYEE';
+
+export interface Profile {
+  id: string;
+  full_name: string;
+  role: UserRole;
+  is_active: boolean;
+  phone?: string;
+  pin_code?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export type PaymentMethod = 'CASH' | 'WALLET';
 
 export type MovementType = 'IN' | 'OUT' | 'ADJUSTMENT' | 'RETURN';

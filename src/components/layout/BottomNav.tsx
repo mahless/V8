@@ -16,24 +16,30 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
+import { useDataStore } from '../../stores/useDataStore';
+
 export const BottomNav: React.FC = () => {
   const { activeTab, setActiveTab } = useUIStore();
+  const { currentRole } = useDataStore();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
 
-  const primaryMobileTabs: { id: NavigationTab; label: string; icon: React.ReactNode; isPrimary?: boolean }[] = [
+  const allPrimaryMobileTabs: { id: NavigationTab; label: string; icon: React.ReactNode; isPrimary?: boolean; managerOnly?: boolean }[] = [
     { id: 'dashboard', label: 'الرئيسية', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'services', label: 'الخدمات', icon: <Wrench className="w-5 h-5" /> },
     { id: 'pos', label: 'بدء عملية جديدة', icon: <PlusCircle className="w-6 h-6" />, isPrimary: true },
-    { id: 'inventory', label: 'المخزن', icon: <Package className="w-5 h-5" /> },
+    { id: 'inventory', label: 'المخزن', icon: <Package className="w-5 h-5" />, managerOnly: true },
   ];
 
-  const moreTabs: { id: NavigationTab; label: string; icon: React.ReactNode }[] = [
+  const allMoreTabs: { id: NavigationTab; label: string; icon: React.ReactNode; managerOnly?: boolean }[] = [
     { id: 'vehicles', label: 'السيارات والعملاء', icon: <Car className="w-5 h-5" /> },
     { id: 'sales', label: 'سجل العمليات', icon: <ReceiptText className="w-5 h-5" /> },
-    { id: 'expenses', label: 'المصروفات', icon: <Coins className="w-5 h-5" /> },
-    { id: 'reports', label: 'التقارير والأداء', icon: <BarChart3 className="w-5 h-5" /> },
-    { id: 'settings', label: 'الإعدادات', icon: <Settings className="w-5 h-5" /> },
+    { id: 'expenses', label: 'المصروفات', icon: <Coins className="w-5 h-5" />, managerOnly: true },
+    { id: 'reports', label: 'التقارير والأداء', icon: <BarChart3 className="w-5 h-5" />, managerOnly: true },
+    { id: 'settings', label: 'الإعدادات', icon: <Settings className="w-5 h-5" />, managerOnly: true },
   ];
+
+  const primaryMobileTabs = allPrimaryMobileTabs.filter((t) => (currentRole === 'EMPLOYEE' ? !t.managerOnly : true));
+  const moreTabs = allMoreTabs.filter((t) => (currentRole === 'EMPLOYEE' ? !t.managerOnly : true));
 
   const isMoreActive = moreTabs.some((t) => t.id === activeTab);
 

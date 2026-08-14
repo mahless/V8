@@ -11,22 +11,35 @@ import {
   Layers, 
   Package, 
   DollarSign,
-  Trash2
+  Trash2,
+  Users,
+  UserPlus,
+  ShieldCheck,
+  UserCheck,
+  Phone,
+  Key,
+  CheckCircle2
 } from 'lucide-react';
 import { useDataStore } from '../../stores/useDataStore';
 import { useUIStore } from '../../stores/useUIStore';
+import { UserRole } from '../../types';
 
 export const SettingsView: React.FC = () => {
   const {
     serviceCategories,
     productCategories,
     expenseCategories,
+    profiles,
     addServiceCategory,
     deleteServiceCategory,
     addProductCategory,
     deleteProductCategory,
     addExpenseCategory,
     deleteExpenseCategory,
+    addEmployee,
+    updateEmployeeRole,
+    toggleEmployeeActive,
+    deleteEmployee,
   } = useDataStore();
 
   const { showToast, showConfirmModal } = useUIStore();
@@ -154,10 +167,44 @@ export const SettingsView: React.FC = () => {
           showToast('تم الحذف 🗑️', `تم حذف بند المصروفات "${name}" بنجاح`, 'info');
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : 'تعذر حذف البند';
-          showToast('خطأ في الحذف', msg, 'error');
         }
       },
     });
+  };
+
+  // Employee Modal State
+  const [isEmpModalOpen, setIsEmpModalOpen] = useState(false);
+  const [empName, setEmpName] = useState('');
+  const [empRole, setEmpRole] = useState<UserRole>('EMPLOYEE');
+  const [empPhone, setEmpPhone] = useState('');
+  const [empPin, setEmpPin] = useState('1234');
+
+  const handleCreateEmployeeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!empName.trim()) {
+      showToast('اسم الموظف مطلوب', 'يرجى كتابة اسم الموظف كاملاً', 'error');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await addEmployee({
+        full_name: empName.trim(),
+        role: empRole,
+        phone: empPhone.trim() || undefined,
+        pin_code: empPin.trim() || '1234',
+      });
+      showToast('تم إضافة الموظف 🎉', `تم تعيين الموظف ${empName.trim()} بنجاح`, 'success');
+      setIsEmpModalOpen(false);
+      setEmpName('');
+      setEmpPhone('');
+      setEmpPin('1234');
+      setEmpRole('EMPLOYEE');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر إضافة الموظف';
+      showToast('خطأ في العملية', msg, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -171,6 +218,127 @@ export const SettingsView: React.FC = () => {
           </h1>
         </div>
       </div>
+
+      {/* Employee & Staff Roles Management Section */}
+      <Card className="border-blue-100 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <CardTitle>إدارة طاقم العمل والموظفين</CardTitle>
+                <p className="text-[11px] text-slate-500 mt-0.5">تعيين موظفين جدد، تحديث الدور (مدير / موظف)، وتفعيل/تجميد الحسابات</p>
+              </div>
+            </div>
+
+            <Button
+              size="sm"
+              onClick={() => {
+                setEmpName('');
+                setEmpPhone('');
+                setEmpPin('1234');
+                setEmpRole('EMPLOYEE');
+                setIsEmpModalOpen(true);
+              }}
+              icon={<UserPlus className="w-4 h-4" />}
+            >
+              إضافة موظف جديد
+            </Button>
+          </div>
+        </CardHeader>
+
+        {/* Employees Table / List */}
+        <div className="space-y-2.5 pt-2">
+          {profiles.length === 0 ? (
+            <div className="p-6 text-center text-slate-400 text-xs">
+              لا يوجد موظفين مسجلين حالياً. اضغط على "إضافة موظف جديد" لتسجيل كادر العمل.
+            </div>
+          ) : (
+            profiles.map((p) => (
+              <div
+                key={p.id}
+                className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                    p.role === 'MANAGER' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {p.role === 'MANAGER' ? <ShieldCheck className="w-5 h-5" /> : <UserCheck className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-slate-900">{p.full_name}</h4>
+                      <Badge variant={p.role === 'MANAGER' ? 'amber' : 'blue'} size="sm">
+                        {p.role === 'MANAGER' ? 'مدير نظام 👑' : 'موظف / كاشير 👤'}
+                      </Badge>
+                      {!p.is_active && (
+                        <Badge variant="red" size="sm">موقوف</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-slate-500 font-mono mt-0.5">
+                      {p.phone && <span>📞 {p.phone}</span>}
+                      <span>🔑 رمز الدخول: {p.pin_code || '1234'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200/60 justify-end">
+                  {/* Change Role Button */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const nextRole: UserRole = p.role === 'MANAGER' ? 'EMPLOYEE' : 'MANAGER';
+                      updateEmployeeRole(p.id, nextRole);
+                      showToast('تم تحديث الدور', `تم تغيير دور ${p.full_name} إلى ${nextRole === 'MANAGER' ? 'مدير' : 'موظف'}`, 'info');
+                    }}
+                    className="text-xs"
+                  >
+                    تغيير إلى {p.role === 'MANAGER' ? 'موظف' : 'مدير'}
+                  </Button>
+
+                  {/* Toggle Active Status */}
+                  <Button
+                    size="sm"
+                    variant={p.is_active ? 'outline' : 'secondary'}
+                    onClick={() => {
+                      toggleEmployeeActive(p.id);
+                      showToast('تم تحديث الحالة', `تم ${p.is_active ? 'تجميد' : 'تفعيل'} حساب ${p.full_name}`, 'info');
+                    }}
+                    className={`text-xs ${!p.is_active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : ''}`}
+                  >
+                    {p.is_active ? 'تجميد الحساب' : 'تفعيل الحساب'}
+                  </Button>
+
+                  {/* Delete Employee */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      showConfirmModal({
+                        title: 'حذف الموظف',
+                        message: `هل أنت تأكد من حذف الموظف "${p.full_name}" من النظام بشكل نهائي؟`,
+                        confirmText: 'نعم، حذف',
+                        cancelText: 'إلغاء',
+                        type: 'danger',
+                        onConfirm: () => {
+                          deleteEmployee(p.id);
+                          showToast('تم الحذف', `تم حذف الموظف ${p.full_name}`, 'info');
+                        },
+                      });
+                    }}
+                    className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    title="حذف الموظف"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </Card>
 
       {/* Manager Category Management Section */}
       <Card className="border-blue-100 shadow-sm">
@@ -420,6 +588,79 @@ export const SettingsView: React.FC = () => {
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="ghost" type="button" onClick={() => setActiveModal(null)}>إلغاء</Button>
             <Button type="submit" isLoading={isSubmitting} icon={<Plus className="w-4 h-4" />}>إنشاء البند</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: New Employee */}
+      <Modal
+        isOpen={isEmpModalOpen}
+        onClose={() => setIsEmpModalOpen(false)}
+        title="تعيين موظف جديد"
+        description="أدخل بيانات الموظف وتحديد الدور الوظيفي ورمز الدخول"
+      >
+        <form onSubmit={handleCreateEmployeeSubmit} className="space-y-4">
+          <Input
+            label="اسم الموظف كاملاً *"
+            placeholder="مثال: أحمد محمود"
+            value={empName}
+            onChange={(e) => setEmpName(e.target.value)}
+            required
+            autoFocus
+          />
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-700">الدور الوظيفي والصلاحيات *</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setEmpRole('EMPLOYEE')}
+                className={`p-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  empRole === 'EMPLOYEE'
+                    ? 'bg-blue-50 text-blue-700 border-blue-500 ring-1 ring-blue-500/20'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>موظف / كاشير</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setEmpRole('MANAGER')}
+                className={`p-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  empRole === 'MANAGER'
+                    ? 'bg-amber-50 text-amber-900 border-amber-500 ring-1 ring-amber-500/20'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4 text-amber-600" />
+                <span>مدير نظام 👑</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="رقم الهاتف (اختياري)"
+              placeholder="01012345678"
+              value={empPhone}
+              onChange={(e) => setEmpPhone(e.target.value)}
+              icon={<Phone className="w-4 h-4 text-slate-400" />}
+            />
+
+            <Input
+              label="رمز الدخول السريع (PIN Code)"
+              placeholder="1234"
+              value={empPin}
+              onChange={(e) => setEmpPin(e.target.value)}
+              icon={<Key className="w-4 h-4 text-slate-400" />}
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="ghost" type="button" onClick={() => setIsEmpModalOpen(false)}>إلغاء</Button>
+            <Button type="submit" isLoading={isSubmitting} icon={<UserPlus className="w-4 h-4" />}>تأكيد إضافة الموظف</Button>
           </div>
         </form>
       </Modal>
