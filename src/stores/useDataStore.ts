@@ -15,7 +15,9 @@ import {
   Profile,
   UserRole
 } from '../types';
-import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
+import { fetchAllData, sendAction } from '../lib/googleSheets';
+
+const generateId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
 interface DataStore {
   // Loading State
@@ -94,7 +96,6 @@ interface DataStore {
 export const useDataStore = create<DataStore>((set, get) => ({
   isLoading: false,
 
-  // Completely emptied local mock data - starts blank until fetched from Supabase
   serviceCategories: [],
   services: [],
   productCategories: [],
@@ -115,18 +116,11 @@ export const useDataStore = create<DataStore>((set, get) => ({
     const allProfiles = get().profiles;
     const target = allProfiles.find((p) => p.id === profileId);
 
-    if (!target) {
-      return { success: false, error: 'الموظف غير موجود في النظام' };
-    }
-
-    if (!target.is_active) {
-      return { success: false, error: 'هذا الحساب موقوف حالياً، يرجى مراجعة المدير' };
-    }
+    if (!target) return { success: false, error: 'الموظف غير موجود في النظام' };
+    if (!target.is_active) return { success: false, error: 'هذا الحساب موقوف حالياً، يرجى مراجعة المدير' };
 
     const validPin = target.pin_code || '1234';
-    if (pinCode.trim() !== validPin.trim()) {
-      return { success: false, error: 'رمز الدخول (PIN) غير صحيح' };
-    }
+    if (pinCode.trim() !== String(validPin).trim()) return { success: false, error: 'رمز الدخول (PIN) غير صحيح' };
 
     localStorage.setItem('v8_active_employee_id', target.id);
     set({
@@ -146,60 +140,48 @@ export const useDataStore = create<DataStore>((set, get) => ({
   },
 
   fetchInitialData: async () => {
-    if (!isSupabaseConfigured || !supabase) {
-      console.warn('Supabase is not configured. Local data is empty.');
-      return;
-    }
-
     set({ isLoading: true });
     try {
-      // 1. Fetch Categories, Services, Employees & Data
-      const [
-        { data: sCategories },
-        { data: servicesData },
-        { data: pCategories },
-        { data: productsData },
-        { data: vehiclesData },
-        { data: salesData },
-        { data: saleItemsData },
-        { data: paymentsData },
-        { data: movementsData },
-        { data: eCategories },
-        { data: expensesData },
-        { data: profilesData }
-      ] = await Promise.all([
-        supabase.from('service_categories').select('*').order('name'),
-        supabase.from('services').select('*').order('name'),
-        supabase.from('product_categories').select('*').order('name'),
-        supabase.from('products').select('*').order('name'),
-        supabase.from('vehicles_with_stats').select('*').order('created_at', { ascending: false }),
-        supabase.from('sales').select('*').order('created_at', { ascending: false }),
-        supabase.from('sale_items').select('*'),
-        supabase.from('payments').select('*').order('created_at', { ascending: false }),
-        supabase.from('inventory_movements').select('*').order('created_at', { ascending: false }),
-        supabase.from('expense_categories').select('*').order('name'),
-        supabase.from('expenses').select('*').order('created_at', { ascending: false }),
-        supabase.from('profiles').select('*').order('created_at', { ascending: false })
-      ]);
+      const response = await fetchAllData();
+      if (!response.success || !response.data) throw new Error("Failed to load data from Sheets");
 
-      const formattedVehicles: Vehicle[] = (vehiclesData || []).map((v) => ({
+      const d = response.data;
+      
+      const sCategories = d.Service_Categories || [];
+      const servicesData = d.Services || [];
+      const pCategories = d.Product_Categories || [];
+      const productsData = d.Products || [];
+      const vehiclesData = d.Vehicles || [];
+      const salesData = d.Sales || [];
+      const saleItemsData = d.Sale_Items || [];
+      const paymentsData = d.Payments || [];
+      const movementsData = d.Inventory_Movements || [];
+      const eCategories = d.Expense_Categories || [];
+      const expensesData = d.Expenses || [];
+      const profilesData = d.Profiles || [];
+
+      // Parse arrays safely
+      const parseBool = (v: any) => v === true || v === 'TRUE' || v === 'true';
+      const parseNum = (v: any) => Number(v) || 0;
+
+      const formattedVehicles: Vehicle[] = vehiclesData.map((v: any) => ({
         id: v.id,
         plate_letters: v.plate_letters,
         plate_numbers: v.plate_numbers,
         plate_display: v.plate_display,
         driver_name: v.driver_name,
-        phone: v.phone,
+        phone: String(v.phone || ''),
         notes: v.notes || '',
-        visits_count: v.visits_count || 0,
-        last_rewarded_visit_count: v.last_rewarded_visit_count || 0,
-        total_spent: v.total_spent || 0,
+        visits_count: parseNum(v.visits_count),
+        last_rewarded_visit_count: parseNum(v.last_rewarded_visit_count),
+        total_spent: parseNum(v.total_spent),
         last_visit_at: v.last_visit_at,
         created_at: v.created_at,
         updated_at: v.updated_at
       }));
 
       const itemsMap = new Map<string, SaleItem[]>();
-      (saleItemsData || []).forEach((item) => {
+      saleItemsData.forEach((item: any) => {
         const list = itemsMap.get(item.sale_id) || [];
         list.push({
           id: item.id,
@@ -208,25 +190,26 @@ export const useDataStore = create<DataStore>((set, get) => ({
           service_id: item.service_id,
           product_id: item.product_id,
           item_name_snapshot: item.item_name_snapshot,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total: item.total
+          quantity: parseNum(item.quantity),
+          unit_price: parseNum(item.unit_price),
+          total: parseNum(item.total)
         });
         itemsMap.set(item.sale_id, list);
       });
 
       const paymentsMap = new Map<string, Payment>();
-      (paymentsData || []).forEach((p) => {
+      paymentsData.forEach((p: any) => {
         paymentsMap.set(p.sale_id, {
           id: p.id,
           sale_id: p.sale_id,
-          amount: p.amount,
+          amount: parseNum(p.amount),
           payment_method: p.payment_method,
-          created_at: p.created_at
+          created_at: p.created_at,
+          created_by: p.created_by
         });
       });
 
-      const formattedSales: Sale[] = (salesData || []).map((s) => {
+      const formattedSales: Sale[] = salesData.map((s: any) => {
         const vehicleObj = formattedVehicles.find((v) => v.id === s.vehicle_id);
         return {
           id: s.id,
@@ -234,9 +217,10 @@ export const useDataStore = create<DataStore>((set, get) => ({
           idempotency_key: s.idempotency_key,
           vehicle_id: s.vehicle_id,
           vehicle: vehicleObj,
-          subtotal: s.subtotal,
-          discount: s.discount,
-          total: s.total,
+          employee_id: s.employee_id,
+          subtotal: parseNum(s.subtotal),
+          discount: parseNum(s.discount),
+          total: parseNum(s.total),
           payment_method: s.payment_method,
           status: s.status,
           notes: s.notes,
@@ -247,475 +231,392 @@ export const useDataStore = create<DataStore>((set, get) => ({
         };
       });
 
-      const loadedProfiles = profilesData || [];
       const savedEmpId = localStorage.getItem('v8_active_employee_id');
-      const activeProfile = loadedProfiles.find((p) => p.id === savedEmpId && p.is_active) || null;
+      const activeProfile = profilesData.find((p: any) => p.id === savedEmpId && parseBool(p.is_active)) || null;
 
       set({
-        serviceCategories: sCategories || [],
-        services: servicesData || [],
-        productCategories: pCategories || [],
-        products: productsData || [],
+        serviceCategories: sCategories,
+        services: servicesData,
+        productCategories: pCategories,
+        products: productsData,
         vehicles: formattedVehicles,
         sales: formattedSales,
-        payments: paymentsData || [],
-        inventoryMovements: movementsData || [],
-        expenseCategories: eCategories || [],
-        expenses: expensesData || [],
-        profiles: loadedProfiles,
+        payments: paymentsData,
+        inventoryMovements: movementsData,
+        expenseCategories: eCategories,
+        expenses: expensesData,
+        profiles: profilesData,
         currentProfile: activeProfile,
         currentRole: activeProfile ? activeProfile.role : get().currentRole
       });
     } catch (err) {
-      console.error('Error fetching initial data from Supabase:', err);
+      console.error('Error fetching initial data from Google Sheets:', err);
     } finally {
       set({ isLoading: false });
     }
   },
 
   addVehicle: async (vehicleData) => {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .insert([{
-          plate_letters: vehicleData.plate_letters,
-          plate_numbers: vehicleData.plate_numbers,
-          plate_display: vehicleData.plate_display,
-          driver_name: vehicleData.driver_name,
-          phone: vehicleData.phone,
-          notes: vehicleData.notes || null
-        }])
-        .select('*')
-        .single();
-
-      if (error) {
-        console.error('Failed to insert vehicle into Supabase:', error);
-        throw new Error(error.message);
-      }
-
-      const newVehicle: Vehicle = {
-        id: data.id,
-        plate_letters: data.plate_letters,
-        plate_numbers: data.plate_numbers,
-        plate_display: data.plate_display,
-        driver_name: data.driver_name,
-        phone: data.phone,
-        notes: data.notes || '',
-        visits_count: 0,
-        total_spent: 0,
-        created_at: data.created_at,
-        updated_at: data.updated_at
-      };
-
+    const newVehicle: Vehicle = {
+      id: generateId('veh'),
+      plate_letters: vehicleData.plate_letters,
+      plate_numbers: vehicleData.plate_numbers,
+      plate_display: vehicleData.plate_display,
+      driver_name: vehicleData.driver_name,
+      phone: vehicleData.phone,
+      notes: vehicleData.notes || '',
+      visits_count: 0,
+      last_rewarded_visit_count: 0,
+      total_spent: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    try {
+      await sendAction('INSERT', { table: 'Vehicles', data: newVehicle });
       set({ vehicles: [newVehicle, ...get().vehicles] });
       return newVehicle;
+    } catch (e) {
+      console.error(e);
+      return null;
     }
-    return null;
   },
 
   updateVehicle: async (id, data) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase
-        .from('vehicles')
-        .update(data)
-        .eq('id', id);
-
-      if (error) {
-        console.error('Failed to update vehicle in Supabase:', error);
-        return;
-      }
-    }
-
+    const updatedData = { ...data, updated_at: new Date().toISOString() };
+    await sendAction('UPDATE', { table: 'Vehicles', id, data: updatedData }).catch(console.error);
     set({
-      vehicles: get().vehicles.map((v) => (v.id === id ? { ...v, ...data, updated_at: new Date().toISOString() } : v)),
+      vehicles: get().vehicles.map((v) => (v.id === id ? { ...v, ...updatedData } : v)),
     });
   },
 
   addService: async (serviceData) => {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from('services')
-        .insert([{
-          category_id: serviceData.category_id || null,
-          name: serviceData.name,
-          description: serviceData.description || null,
-          price: serviceData.price,
-          is_active: serviceData.is_active ?? true
-        }])
-        .select('*')
-        .single();
-
-      if (error) {
-        console.error('Failed to add service to Supabase:', error);
-        throw new Error(error.message);
-      }
-
-      if (data) {
-        set({ services: [...get().services, data] });
-      }
-    }
+    const newService: Service = {
+      id: generateId('srv'),
+      category_id: serviceData.category_id || '',
+      name: serviceData.name,
+      description: serviceData.description || '',
+      price: serviceData.price,
+      is_active: serviceData.is_active ?? true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    await sendAction('INSERT', { table: 'Services', data: newService }).catch(console.error);
+    set({ services: [...get().services, newService] });
   },
 
   updateService: async (id, data) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from('services').update(data).eq('id', id);
-      if (error) console.error('Error updating service:', error);
-    }
+    const updatedData = { ...data, updated_at: new Date().toISOString() };
+    await sendAction('UPDATE', { table: 'Services', id, data: updatedData }).catch(console.error);
     set({
-      services: get().services.map((s) => (s.id === id ? { ...s, ...data, updated_at: new Date().toISOString() } : s)),
+      services: get().services.map((s) => (s.id === id ? { ...s, ...updatedData } : s)),
     });
   },
 
   deleteService: async (id) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from('services').delete().eq('id', id);
-      if (error) console.error('Error deleting service:', error);
-    }
-    set({
-      services: get().services.filter((s) => s.id !== id),
-    });
+    await sendAction('DELETE', { table: 'Services', id }).catch(console.error);
+    set({ services: get().services.filter((s) => s.id !== id) });
   },
 
   toggleServiceActive: async (id) => {
     const srv = get().services.find((s) => s.id === id);
     if (!srv) return;
     const newStatus = !srv.is_active;
-
-    if (isSupabaseConfigured && supabase) {
-      await supabase.from('services').update({ is_active: newStatus }).eq('id', id);
-    }
+    await sendAction('UPDATE', { table: 'Services', id, data: { is_active: newStatus } }).catch(console.error);
     set({
       services: get().services.map((s) => (s.id === id ? { ...s, is_active: newStatus } : s)),
     });
   },
 
   addProduct: async (productData) => {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from('products')
-        .insert([{
-          category_id: productData.category_id || null,
-          name: productData.name,
-          sku: productData.sku || null,
-          unit: productData.unit || 'قطعة',
-          purchase_price: productData.purchase_price || 0,
-          selling_price: productData.selling_price,
-          current_stock: productData.current_stock || 0,
-          minimum_stock: productData.minimum_stock || 5,
-          is_active: productData.is_active ?? true,
-          notes: productData.notes || null
-        }])
-        .select('*')
-        .single();
-
-      if (error) {
-        console.error('Failed to add product to Supabase:', error);
-        throw new Error(error.message);
-      }
-
-      if (data) {
-        set({ products: [...get().products, data] });
-      }
-    }
+    const newProduct: Product = {
+      id: generateId('prod'),
+      category_id: productData.category_id || '',
+      name: productData.name,
+      sku: productData.sku || '',
+      unit: productData.unit || 'قطعة',
+      purchase_price: productData.purchase_price || 0,
+      selling_price: productData.selling_price,
+      current_stock: productData.current_stock || 0,
+      minimum_stock: productData.minimum_stock || 5,
+      is_active: productData.is_active ?? true,
+      notes: productData.notes || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    await sendAction('INSERT', { table: 'Products', data: newProduct }).catch(console.error);
+    set({ products: [...get().products, newProduct] });
   },
 
   updateProduct: async (id, data) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from('products').update(data).eq('id', id);
-      if (error) console.error('Error updating product:', error);
-    }
+    const updatedData = { ...data, updated_at: new Date().toISOString() };
+    await sendAction('UPDATE', { table: 'Products', id, data: updatedData }).catch(console.error);
     set({
-      products: get().products.map((p) => (p.id === id ? { ...p, ...data, updated_at: new Date().toISOString() } : p)),
+      products: get().products.map((p) => (p.id === id ? { ...p, ...updatedData } : p)),
     });
   },
 
   deleteProduct: async (id) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) console.error('Error deleting product:', error);
-    }
-    set({
-      products: get().products.filter((p) => p.id !== id),
-    });
+    await sendAction('DELETE', { table: 'Products', id }).catch(console.error);
+    set({ products: get().products.filter((p) => p.id !== id) });
   },
 
   addStock: async (productId, quantity, purchasePrice, notes) => {
     const product = get().products.find((p) => p.id === productId);
     if (!product) return;
+    const updatedStock = Number(product.current_stock) + quantity;
+    const newPrice = purchasePrice > 0 ? purchasePrice : product.purchase_price;
 
-    if (isSupabaseConfigured && supabase) {
-      const updatedStock = product.current_stock + quantity;
-      const { error: stockErr } = await supabase
-        .from('products')
-        .update({
-          current_stock: updatedStock,
-          purchase_price: purchasePrice > 0 ? purchasePrice : product.purchase_price,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', productId);
-
-      if (stockErr) console.error('Error adding stock to Supabase:', stockErr);
-
-      const { data: mvData } = await supabase
-        .from('inventory_movements')
-        .insert([{
-          product_id: productId,
-          movement_type: 'IN',
-          quantity,
-          unit_cost: purchasePrice,
-          reference_type: 'PURCHASE',
-          notes: notes || 'إضافة شحنة بضاعة للمخزن'
-        }])
-        .select('*')
-        .single();
-
-      if (mvData) {
-        set({
-          products: get().products.map((p) => (p.id === productId ? { ...p, current_stock: updatedStock, purchase_price: purchasePrice > 0 ? purchasePrice : p.purchase_price } : p)),
-          inventoryMovements: [mvData, ...get().inventoryMovements]
-        });
-        return;
-      }
-    }
+    await sendAction('UPDATE', { table: 'Products', id: productId, data: { current_stock: updatedStock, purchase_price: newPrice, updated_at: new Date().toISOString() } });
+    
+    const mv: InventoryMovement = {
+      id: generateId('mv'),
+      product_id: productId,
+      movement_type: 'IN',
+      quantity,
+      unit_cost: newPrice,
+      reference_type: 'PURCHASE',
+      notes: notes || 'إضافة شحنة بضاعة للمخزن',
+      created_by: get().currentProfile?.id || '',
+      created_at: new Date().toISOString()
+    };
+    await sendAction('INSERT', { table: 'Inventory_Movements', data: mv });
+    
+    set({
+      products: get().products.map((p) => (p.id === productId ? { ...p, current_stock: updatedStock, purchase_price: newPrice } : p)),
+      inventoryMovements: [mv, ...get().inventoryMovements]
+    });
   },
 
-  // POS Sale Execution via Supabase Atomic RPC
   createAtomicSale: async (vehicleId, rawItems, paymentMethod, notes, idempotencyKey, discountPercent = 0) => {
-    const ik = idempotencyKey || `ik_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const currentProf = get().currentProfile;
-    const empPrefix = currentProf ? `[الموظف: ${currentProf.full_name}] ` : '';
-    const fullNotes = empPrefix + (notes || '');
-
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data, error } = await supabase.rpc('process_pos_sale', {
-          p_vehicle_id: vehicleId,
-          p_items: rawItems,
-          p_payment_method: paymentMethod,
-          p_notes: fullNotes.trim() || null,
-          p_idempotency_key: ik,
-          p_discount_percent: discountPercent || 0
-        });
-
-        if (error) {
-          console.error('Supabase RPC process_pos_sale Error:', error);
-          return { success: false, error: error.message };
-        }
-
-        if (data && data.success) {
-          // If profile exists, also try updating employee_id in sales row directly for reliability
-          if (currentProf?.id && data.sale_id) {
-            await supabase.from('sales').update({ employee_id: currentProf.id }).eq('id', data.sale_id);
+    try {
+      const ik = idempotencyKey || generateId('ik');
+      const currentProf = get().currentProfile;
+      const empPrefix = currentProf ? `[الموظف: ${currentProf.full_name}] ` : '';
+      const fullNotes = empPrefix + (notes || '');
+      
+      const saleId = generateId('sale');
+      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+      
+      const newItems: SaleItem[] = [];
+      let subtotal = 0;
+      const inventoryMovements: InventoryMovement[] = [];
+      
+      rawItems.forEach(item => {
+        let price = 0;
+        let name = '';
+        if (item.type === 'SERVICE') {
+          const s = get().services.find(s => s.id === item.id);
+          if (s) { price = s.price; name = s.name; }
+        } else {
+          const p = get().products.find(p => p.id === item.id);
+          if (p) { 
+            price = p.selling_price; 
+            name = p.name;
+            inventoryMovements.push({
+              id: generateId('mv'),
+              product_id: item.id,
+              movement_type: 'OUT',
+              quantity: item.quantity,
+              unit_cost: p.purchase_price,
+              reference_type: 'SALE',
+              reference_id: saleId,
+              notes: 'مبيعات فاتورة ' + invoiceNumber,
+              created_by: currentProf?.id || '',
+              created_at: new Date().toISOString()
+            });
           }
-
-          // Refresh store data from Supabase to sync vehicle stats, stock, and sales
-          await get().fetchInitialData();
-          return {
-            success: true,
-            saleId: data.sale_id,
-            invoiceNumber: data.invoice_number
-          };
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'حدث خطأ غير متوقع أثناء تنفيذ عملية البيع';
-        return { success: false, error: msg };
-      }
-    }
+        
+        const lineTotal = price * item.quantity;
+        subtotal += lineTotal;
+        
+        newItems.push({
+          id: generateId('si'),
+          sale_id: saleId,
+          item_type: item.type,
+          service_id: item.type === 'SERVICE' ? item.id : '',
+          product_id: item.type === 'PRODUCT' ? item.id : '',
+          item_name_snapshot: name,
+          quantity: item.quantity,
+          unit_price: price,
+          total: lineTotal
+        });
+      });
 
-    return { success: false, error: 'غير متصل بقاعدة بيانات Supabase' };
+      const discount = (subtotal * discountPercent) / 100;
+      const total = subtotal - discount;
+
+      const newSale: Sale = {
+        id: saleId,
+        invoice_number: invoiceNumber,
+        idempotency_key: ik,
+        vehicle_id: vehicleId,
+        employee_id: currentProf?.id || '',
+        subtotal,
+        discount,
+        total,
+        payment_method: paymentMethod,
+        status: 'COMPLETED',
+        notes: fullNotes.trim(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const newPayment: Payment = {
+        id: generateId('pay'),
+        sale_id: saleId,
+        amount: total,
+        payment_method: paymentMethod,
+        created_by: currentProf?.id || '',
+        created_at: new Date().toISOString()
+      };
+
+      const res = await sendAction('RPC_PROCESS_SALE', {
+        data: {
+          sale: newSale,
+          items: newItems,
+          payment: newPayment,
+          inventoryMovements
+        }
+      });
+
+      if (!res.success) throw new Error(res.error);
+      
+      await get().fetchInitialData();
+      return { success: true, saleId, invoiceNumber };
+    } catch(err: any) {
+      return { success: false, error: err.message };
+    }
   },
 
-  // POS Sale Cancellation via Supabase Atomic RPC
   cancelAtomicSale: async (saleId, reason) => {
-    const currentProf = get().currentProfile;
-    const empName = currentProf ? currentProf.full_name : 'المدير العام';
-    const fullReason = `[إلغاء بواسطة الموظف: ${empName}] ${reason || 'إلغاء عملية البيع'}`;
-
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data, error } = await supabase.rpc('cancel_pos_sale', {
-          p_sale_id: saleId,
-          p_reason: fullReason
-        });
-
-        if (error) {
-          console.error('Supabase RPC cancel_pos_sale Error:', error);
-          return { success: false, error: error.message };
+    try {
+      const currentProf = get().currentProfile;
+      const empName = currentProf ? currentProf.full_name : 'المدير العام';
+      const fullReason = `[إلغاء بواسطة الموظف: ${empName}] ${reason || 'إلغاء عملية البيع'}`;
+      
+      // Find sale and items to revert stock
+      const sale = get().sales.find(s => s.id === saleId);
+      if (!sale) throw new Error("Sale not found");
+      
+      const inventoryMovements: InventoryMovement[] = [];
+      
+      sale.items?.forEach(item => {
+        if (item.item_type === 'PRODUCT' && item.product_id) {
+           const p = get().products.find(p => p.id === item.product_id);
+           inventoryMovements.push({
+              id: generateId('mv'),
+              product_id: item.product_id,
+              movement_type: 'RETURN',
+              quantity: item.quantity,
+              unit_cost: p?.purchase_price || 0,
+              reference_type: 'SALE_CANCEL',
+              reference_id: saleId,
+              notes: fullReason,
+              created_by: currentProf?.id || '',
+              created_at: new Date().toISOString()
+           });
         }
+      });
 
-        if (data && data.success) {
-          await get().fetchInitialData();
-          return {
-            success: true,
-            message: data.message
-          };
+      const res = await sendAction('RPC_CANCEL_SALE', {
+        data: {
+          saleId,
+          reason: fullReason,
+          inventoryMovements
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'حدث خطأ عند إلغاء الفاتورة';
-        return { success: false, error: msg };
-      }
+      });
+      
+      if (!res.success) throw new Error(res.error);
+      
+      await get().fetchInitialData();
+      return { success: true, message: 'تم إلغاء الفاتورة واسترجاع المنتجات بنجاح' };
+    } catch(err: any) {
+      return { success: false, error: err.message };
     }
-
-    return { success: false, error: 'غير متصل بقاعدة البيانات' };
   },
 
   addExpense: async (expenseData) => {
     const currentProf = get().currentProfile;
     const empName = currentProf ? currentProf.full_name : 'المدير العام';
     const noteWithUser = `[الموظف: ${empName}] ${expenseData.description}`;
-
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from('expenses')
-        .insert([{
-          category_id: expenseData.category_id || null,
-          amount: expenseData.amount,
-          description: noteWithUser
-        }])
-        .select('*')
-        .single();
-
-      if (error) {
-        console.error('Failed to add expense to Supabase:', error);
-        throw new Error(error.message);
-      }
-
-      if (expenseData.product_id && expenseData.quantity && expenseData.quantity > 0) {
-        const prod = get().products.find((p) => p.id === expenseData.product_id);
-        if (prod) {
-          const newStock = Math.max(0, prod.current_stock - expenseData.quantity);
-          await supabase
-            .from('products')
-            .update({ current_stock: newStock, updated_at: new Date().toISOString() })
-            .eq('id', prod.id);
-
-          await supabase
-            .from('inventory_movements')
-            .insert([{
-              product_id: prod.id,
-              movement_type: 'OUT',
-              quantity: expenseData.quantity,
-              unit_cost: prod.purchase_price,
-              reference_type: 'EXPENSE',
-              reference_id: data ? data.id : null,
-              notes: `[الموظف: ${empName}] استهلاك مصروفات: ${expenseData.description}`
-            }]);
-        }
-      }
-
-      if (data) {
-        await get().fetchInitialData();
+    
+    const newExpense: Expense = {
+      id: generateId('exp'),
+      category_id: expenseData.category_id || '',
+      amount: expenseData.amount,
+      description: noteWithUser,
+      product_id: expenseData.product_id || '',
+      quantity: expenseData.quantity || 0,
+      created_by: currentProf?.id || '',
+      created_at: new Date().toISOString()
+    };
+    
+    await sendAction('INSERT', { table: 'Expenses', data: newExpense });
+    
+    if (expenseData.product_id && expenseData.quantity && expenseData.quantity > 0) {
+      const prod = get().products.find(p => p.id === expenseData.product_id);
+      if (prod) {
+        const mv: InventoryMovement = {
+          id: generateId('mv'),
+          product_id: prod.id,
+          movement_type: 'OUT',
+          quantity: expenseData.quantity,
+          unit_cost: prod.purchase_price,
+          reference_type: 'EXPENSE',
+          reference_id: newExpense.id,
+          notes: noteWithUser,
+          created_by: currentProf?.id || '',
+          created_at: new Date().toISOString()
+        };
+        await sendAction('INSERT', { table: 'Inventory_Movements', data: mv });
+        
+        const newStock = Math.max(0, Number(prod.current_stock) - expenseData.quantity);
+        await sendAction('UPDATE', { table: 'Products', id: prod.id, data: { current_stock: newStock, updated_at: new Date().toISOString() }});
       }
     }
+    
+    await get().fetchInitialData();
   },
 
   addServiceCategory: async (name, description) => {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from('service_categories')
-        .insert([{ name, description: description || null, is_active: true }])
-        .select('*')
-        .single();
-
-      if (error) {
-        console.error('Failed to add service category:', error);
-        throw new Error(error.message);
-      }
-
-      if (data) {
-        set({ serviceCategories: [...get().serviceCategories, data] });
-      }
-    }
+    const newCat = { id: generateId('scat'), name, description: description || '', is_active: true, created_at: new Date().toISOString() };
+    await sendAction('INSERT', { table: 'Service_Categories', data: newCat });
+    set({ serviceCategories: [...get().serviceCategories, newCat as any] });
   },
 
   addProductCategory: async (name, description) => {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from('product_categories')
-        .insert([{ name, description: description || null, is_active: true }])
-        .select('*')
-        .single();
-
-      if (error) {
-        console.error('Failed to add product category:', error);
-        throw new Error(error.message);
-      }
-
-      if (data) {
-        set({ productCategories: [...get().productCategories, data] });
-      }
-    }
+    const newCat = { id: generateId('pcat'), name, description: description || '', is_active: true };
+    await sendAction('INSERT', { table: 'Product_Categories', data: newCat });
+    set({ productCategories: [...get().productCategories, newCat as any] });
   },
 
   addExpenseCategory: async (name) => {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from('expense_categories')
-        .insert([{ name, is_active: true }])
-        .select('*')
-        .single();
-
-      if (error) {
-        console.error('Failed to add expense category:', error);
-        throw new Error(error.message);
-      }
-
-      if (data) {
-        set({ expenseCategories: [...get().expenseCategories, data] });
-      }
-    }
+    const newCat = { id: generateId('ecat'), name, is_active: true };
+    await sendAction('INSERT', { table: 'Expense_Categories', data: newCat });
+    set({ expenseCategories: [...get().expenseCategories, newCat as any] });
   },
 
   deleteServiceCategory: async (id) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from('service_categories').delete().eq('id', id);
-      if (error) {
-        console.error('Failed to delete service category:', error);
-        throw new Error(error.message);
-      }
-    }
+    await sendAction('DELETE', { table: 'Service_Categories', id });
     set({ serviceCategories: get().serviceCategories.filter((c) => c.id !== id) });
   },
 
   deleteProductCategory: async (id) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from('product_categories').delete().eq('id', id);
-      if (error) {
-        console.error('Failed to delete product category:', error);
-        throw new Error(error.message);
-      }
-    }
+    await sendAction('DELETE', { table: 'Product_Categories', id });
     set({ productCategories: get().productCategories.filter((c) => c.id !== id) });
   },
 
   deleteExpenseCategory: async (id) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from('expense_categories').delete().eq('id', id);
-      if (error) {
-        console.error('Failed to delete expense category:', error);
-        throw new Error(error.message);
-      }
-    }
+    await sendAction('DELETE', { table: 'Expense_Categories', id });
     set({ expenseCategories: get().expenseCategories.filter((c) => c.id !== id) });
   },
 
-  claimVipReward: async (vehicleId: string) => {
+  claimVipReward: async (vehicleId) => {
     const target = get().vehicles.find((v) => v.id === vehicleId);
     if (!target) return;
     const currentVisits = target.visits_count || 0;
-
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase
-        .from('vehicles')
-        .update({ last_rewarded_visit_count: currentVisits })
-        .eq('id', vehicleId);
-
-      if (error) {
-        console.error('Failed to update VIP reward count in Supabase:', error);
-        throw new Error(error.message);
-      }
-    }
-
+    await sendAction('UPDATE', { table: 'Vehicles', id: vehicleId, data: { last_rewarded_visit_count: currentVisits } });
     set({
       vehicles: get().vehicles.map((v) =>
         v.id === vehicleId ? { ...v, last_rewarded_visit_count: currentVisits } : v
@@ -724,74 +625,22 @@ export const useDataStore = create<DataStore>((set, get) => ({
   },
 
   addEmployee: async (profileData) => {
-    if (isSupabaseConfigured && supabase) {
-      // Attempt insertion with optional phone and pin_code fields
-      const insertPayload: Record<string, any> = {
-        full_name: profileData.full_name,
-        role: profileData.role,
-        is_active: true
-      };
-      if (profileData.phone) insertPayload.phone = profileData.phone;
-      if (profileData.pin_code) insertPayload.pin_code = profileData.pin_code;
-
-      let { data, error } = await supabase
-        .from('profiles')
-        .insert([insertPayload])
-        .select('*')
-        .single();
-
-      // If remote table lacks phone/pin_code columns, retry with core fields
-      if (error && (error.message.includes('column') || error.message.includes('schema cache'))) {
-        const corePayload = {
-          full_name: profileData.full_name,
-          role: profileData.role,
-          is_active: true
-        };
-        const retryResult = await supabase
-          .from('profiles')
-          .insert([corePayload])
-          .select('*')
-          .single();
-        
-        data = retryResult.data;
-        error = retryResult.error;
-      }
-
-      if (error) {
-        console.error('Failed to add employee to Supabase:', error);
-        throw new Error(error.message);
-      }
-
-      if (data) {
-        set({ profiles: [data, ...get().profiles] });
-        return;
-      }
-    }
-
-    const mockProfile: Profile = {
-      id: `prof_${Date.now()}`,
+    const newProfile: Profile = {
+      id: generateId('prof'),
       full_name: profileData.full_name,
       role: profileData.role,
-      phone: profileData.phone,
+      phone: profileData.phone || '',
       pin_code: profileData.pin_code || '1234',
       is_active: true,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
-    set({ profiles: [mockProfile, ...get().profiles] });
+    await sendAction('INSERT', { table: 'Profiles', data: newProfile });
+    set({ profiles: [newProfile, ...get().profiles] });
   },
 
   updateEmployeeRole: async (id, role) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role, updated_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) {
-        console.error('Failed to update employee role in Supabase:', error);
-        throw new Error(error.message);
-      }
-    }
+    await sendAction('UPDATE', { table: 'Profiles', id, data: { role, updated_at: new Date().toISOString() } });
     set({
       profiles: get().profiles.map((p) => (p.id === id ? { ...p, role } : p))
     });
@@ -801,32 +650,14 @@ export const useDataStore = create<DataStore>((set, get) => ({
     const target = get().profiles.find((p) => p.id === id);
     if (!target) return;
     const nextState = !target.is_active;
-
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_active: nextState, updated_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) {
-        console.error('Failed to toggle employee active state in Supabase:', error);
-        throw new Error(error.message);
-      }
-    }
-
+    await sendAction('UPDATE', { table: 'Profiles', id, data: { is_active: nextState, updated_at: new Date().toISOString() } });
     set({
       profiles: get().profiles.map((p) => (p.id === id ? { ...p, is_active: nextState } : p))
     });
   },
 
   deleteEmployee: async (id) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from('profiles').delete().eq('id', id);
-      if (error) {
-        console.error('Failed to delete employee in Supabase:', error);
-        throw new Error(error.message);
-      }
-    }
+    await sendAction('DELETE', { table: 'Profiles', id });
     set({ profiles: get().profiles.filter((p) => p.id !== id) });
   },
 
@@ -838,7 +669,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
         v.plate_display.toLowerCase().includes(q) ||
         v.plate_letters.toLowerCase().includes(q) ||
         v.plate_numbers.includes(q) ||
-        v.phone.includes(q) ||
+        String(v.phone).includes(q) ||
         v.driver_name.toLowerCase().includes(q)
     );
   },
