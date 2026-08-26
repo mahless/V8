@@ -25,12 +25,18 @@ export const ReceiptModal: React.FC = () => {
       return;
     }
 
+    // Get all styles from the current document to preserve Tailwind classes
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((tag) => tag.outerHTML)
+      .join('\n');
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
           <meta charset="utf-8" />
           <title>فاتورة - ${selectedSale?.invoice_number || 'Receipt'}</title>
+          ${styles}
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
             @media print {
@@ -53,30 +59,42 @@ export const ReceiptModal: React.FC = () => {
                 max-width: 74mm !important;
                 margin: 0 auto !important;
               }
+              /* Enhance contrast for thermal printers while preserving layout */
+              #thermal-receipt {
+                border: 2px solid #000 !important;
+                box-shadow: none !important;
+              }
+              .border-dashed {
+                border-color: #000 !important;
+                border-style: dashed !important;
+              }
+              .border-b, .border-t {
+                border-color: #000 !important;
+              }
             }
             body {
               font-family: 'Cairo', system-ui, -apple-system, sans-serif;
               direction: rtl;
               padding: 10px;
               background: #ffffff;
-              color: #0f172a;
-              font-size: 12px;
             }
           </style>
         </head>
         <body>
           <div id="receipt-print-wrapper">
-            ${printContent.innerHTML}
+            ${printContent.outerHTML}
           </div>
         </body>
       </html>
     `);
     printWindow.document.close();
     printWindow.focus();
+    
+    // Increased timeout to allow styles to fully parse and apply
     setTimeout(() => {
       printWindow.print();
       printWindow.close();
-    }, 300);
+    }, 800);
   };
 
   if (!isReceiptModalOpen || !selectedSale) return null;
