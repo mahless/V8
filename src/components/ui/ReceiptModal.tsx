@@ -50,7 +50,7 @@ export const ReceiptModal: React.FC = () => {
               padding: 0 !important;
               background: #ffffff !important;
               font-family: 'Cairo', system-ui, -apple-system, sans-serif !important;
-              height: max-content !important;
+              height: auto !important;
               overflow: visible !important;
             }
             body {
@@ -64,6 +64,7 @@ export const ReceiptModal: React.FC = () => {
               padding: 2mm !important;
               box-shadow: none !important;
               border: none !important;
+              page-break-inside: avoid !important;
             }
           </style>
         </head>
