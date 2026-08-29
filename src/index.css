@@ -47,48 +47,10 @@
   scrollbar-width: none;
 }
 
-#print-section {
-  display: none;
-}
-
 @media print {
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-  }
-  @page {
-    margin: 0;
-  }
-  
-  html, body {
-    height: auto !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-  
-  body.print-active > *:not(#print-section) {
-    display: none !important;
-  }
-  
-  #print-section {
-    display: block !important;
-    position: relative !important;
-    width: 100% !important;
-    max-width: 80mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  
-  #print-section #thermal-receipt {
-    width: 100% !important;
-    max-width: 80mm !important;
-    margin: 0 !important;
-    padding: 0 2mm !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: #ffffff !important;
   }
 }
 

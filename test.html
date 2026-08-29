@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+@media print {
+  body > *:not(#print-section) {
+    display: none !important;
+  }
+  html, body {
+    height: auto !important;
+    margin: 0;
+  }
+}
+</style>
+</head>
+<body>
+  <div style="height: 2000px; background: red;">Long content</div>
+  <div id="print-section">Short content</div>
+</body>
+</html>

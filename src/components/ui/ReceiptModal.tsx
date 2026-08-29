@@ -16,21 +16,76 @@ export const ReceiptModal: React.FC = () => {
     const receipt = document.getElementById('thermal-receipt');
     if (!receipt) return;
     
-    const printWrapper = document.createElement('div');
-    printWrapper.id = 'print-section';
-    printWrapper.appendChild(receipt.cloneNode(true));
-    document.body.appendChild(printWrapper);
-    document.body.classList.add('print-active');
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
     
+    const iframeDoc = iframe.contentWindow?.document;
+    if (!iframeDoc) return;
+    
+    // Extract all styles to ensure Tailwind works
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((tag) => tag.outerHTML)
+      .join('\n');
+      
+    // Write the document to the iframe
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+        <head>
+          <meta charset="utf-8" />
+          <title>فاتورة - ${selectedSale?.invoice_number || 'Receipt'}</title>
+          ${styles}
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
+            @page { margin: 0; }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              font-family: 'Cairo', system-ui, -apple-system, sans-serif !important;
+              height: max-content !important;
+              overflow: visible !important;
+            }
+            body {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            #thermal-receipt {
+              width: 100% !important;
+              max-width: 80mm !important;
+              margin: 0 !important;
+              padding: 2mm !important;
+              box-shadow: none !important;
+              border: none !important;
+            }
+          </style>
+        </head>
+        <body>
+          ${receipt.outerHTML}
+        </body>
+      </html>
+    `);
+    iframeDoc.close();
+    
+    // Wait for styles and fonts to be applied
     setTimeout(() => {
-      window.print();
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      
+      // Cleanup after print dialog closes
       setTimeout(() => {
-        document.body.classList.remove('print-active');
-        if (printWrapper.parentNode) {
-          document.body.removeChild(printWrapper);
+        if (iframe.parentNode) {
+          document.body.removeChild(iframe);
         }
       }, 500);
-    }, 50);
+    }, 500);
   };
 
   if (!isReceiptModalOpen || !selectedSale) return null;
