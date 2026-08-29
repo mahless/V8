@@ -13,7 +13,24 @@ export const ReceiptModal: React.FC = () => {
   const selectedSale = sales.find((s) => s.id === activeReceiptSaleId) || sales[0];
 
   const handlePrint = () => {
-    window.print();
+    const receipt = document.getElementById('thermal-receipt');
+    if (!receipt) return;
+    
+    const printWrapper = document.createElement('div');
+    printWrapper.id = 'print-section';
+    printWrapper.appendChild(receipt.cloneNode(true));
+    document.body.appendChild(printWrapper);
+    document.body.classList.add('print-active');
+    
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('print-active');
+        if (printWrapper.parentNode) {
+          document.body.removeChild(printWrapper);
+        }
+      }, 500);
+    }, 50);
   };
 
   if (!isReceiptModalOpen || !selectedSale) return null;

@@ -47,6 +47,10 @@
   scrollbar-width: none;
 }
 
+#print-section {
+  display: none;
+}
+
 @media print {
   * {
     -webkit-print-color-adjust: exact !important;
@@ -56,34 +60,30 @@
     size: 80mm auto;
     margin: 0;
   }
-  html, body, #root {
-    background: white !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  /* Hide the modal backdrop during print */
-  .fixed.inset-0.bg-slate-900\/40 {
+  
+  body.print-active #root {
     display: none !important;
   }
-  /* Remove Modal constraints */
-  .fixed, .relative, .absolute {
-    position: static !important;
-    transform: none !important;
-    box-shadow: none !important;
+  
+  #print-section {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    max-width: 80mm !important;
     margin: 0 !important;
     padding: 0 !important;
-    border: none !important;
   }
-  /* Ensure thermal receipt defines the document size */
-  #thermal-receipt {
-    width: 80mm !important;
+  
+  #print-section #thermal-receipt {
+    width: 100% !important;
     max-width: 80mm !important;
     margin: 0 !important;
     padding: 2mm !important;
-  }
-  /* Hide buttons area */
-  #thermal-receipt + div {
-    display: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
   }
 }
 
