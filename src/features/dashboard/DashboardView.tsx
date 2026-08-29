@@ -17,7 +17,7 @@ import {
   PackageCheck,
   ChevronDown,
 } from 'lucide-react';
-import { formatArabicDate } from '../../lib/utils';
+import { formatArabicDate, isTodayShift } from '../../lib/utils';
 
 export const DashboardView: React.FC = () => {
   const { sales, vehicles, products, currentRole } = useDataStore();
@@ -27,15 +27,18 @@ export const DashboardView: React.FC = () => {
   const [visibleSalesCount, setVisibleSalesCount] = useState(10);
   const [visibleLowStockCount, setVisibleLowStockCount] = useState(10);
 
-  // Metrics Calculations
-  const totalTodayRevenue = sales.reduce((sum, s) => sum + s.total, 0);
-  const totalVehiclesCount = vehicles.length;
-  const totalSalesCount = sales.length;
+  // Filter sales for the current shift (starts at 9:00 AM)
+  const todaySales = sales.filter((s) => isTodayShift(s.created_at));
+
+  // Metrics Calculations for Today
+  const totalTodayRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
+  const totalVehiclesCount = new Set(todaySales.map((s) => s.vehicle_id)).size;
+  const totalSalesCount = todaySales.length;
 
   // Low stock products
   const lowStockProducts = products.filter((p) => p.current_stock <= p.minimum_stock);
 
-  const displayedSales = sales.slice(0, visibleSalesCount);
+  const displayedSales = todaySales.slice(0, visibleSalesCount);
   const displayedLowStock = lowStockProducts.slice(0, visibleLowStockCount);
 
   return (
@@ -94,7 +97,7 @@ export const DashboardView: React.FC = () => {
             <div className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight">
               {totalVehiclesCount}
             </div>
-            <p className="text-[11px] text-slate-400 font-medium mt-1">إجمالي السيارات المسجلة</p>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">السيارات المغسولة خلال الوردية الحالية</p>
           </div>
         </Card>
 
@@ -126,12 +129,12 @@ export const DashboardView: React.FC = () => {
                 <CardTitle>أحدث عمليات اليوم</CardTitle>
               </div>
               <Badge variant="neutral" size="sm">
-                عرض {displayedSales.length} من {sales.length}
+                عرض {displayedSales.length} من {todaySales.length}
               </Badge>
             </CardHeader>
 
             <div className="space-y-3">
-              {sales.length === 0 ? (
+              {todaySales.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 text-xs">
                   لا توجد عمليات اليوم، ابدأ عملية جديدة الآن!
                 </div>
@@ -190,7 +193,7 @@ export const DashboardView: React.FC = () => {
             </div>
 
             {/* Show More Button */}
-            {sales.length > visibleSalesCount && (
+            {todaySales.length > visibleSalesCount && (
               <div className="text-center pt-4 border-t border-slate-100 mt-4">
                 <Button
                   variant="outline"
@@ -199,7 +202,7 @@ export const DashboardView: React.FC = () => {
                   className="text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 w-full sm:w-auto cursor-pointer"
                   icon={<ChevronDown className="w-4 h-4 text-blue-600" />}
                 >
-                  عرض المزيد ({sales.length - visibleSalesCount} عمليات أخرى)
+                  عرض المزيد ({todaySales.length - visibleSalesCount} عمليات أخرى)
                 </Button>
               </div>
             )}

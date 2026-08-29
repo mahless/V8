@@ -44,6 +44,30 @@ export function formatArabicDate(dateString: string): string {
   return convertArabicDigitsToEnglish(formatted);
 }
 
+// Check if a date belongs to the current daily shift (starts at 9:00 AM)
+export function isTodayShift(dateString: string): boolean {
+  if (!dateString) return false;
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return false;
+
+  const now = new Date();
+  
+  // Calculate start of current shift (9:00 AM)
+  const shiftStart = new Date(now);
+  shiftStart.setHours(9, 0, 0, 0);
+  
+  // If we are currently before 9 AM, the shift started yesterday
+  if (now.getHours() < 9) {
+    shiftStart.setDate(shiftStart.getDate() - 1);
+  }
+  
+  // Shift ends 24 hours after it starts
+  const shiftEnd = new Date(shiftStart);
+  shiftEnd.setDate(shiftEnd.getDate() + 1);
+  
+  return date >= shiftStart && date < shiftEnd;
+}
+
 // Egyptian Plate Validation & Formatting
 // Valid Arabic letters used in plates
 const ARABIC_LETTERS_ONLY_REGEX = /^[\u0600-\u06FF]+$/;
