@@ -16,7 +16,7 @@ export const ReceiptModal: React.FC = () => {
     const receipt = document.getElementById('thermal-receipt');
     if (!receipt) return;
     
-    // Create a hidden iframe
+    // Create a hidden iframe — completely isolated document
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
     iframe.style.right = '0';
@@ -29,42 +29,35 @@ export const ReceiptModal: React.FC = () => {
     const iframeDoc = iframe.contentWindow?.document;
     if (!iframeDoc) return;
     
-    // Extract all styles to ensure Tailwind works
+    // Copy all stylesheets from parent to preserve Tailwind
     const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
       .map((tag) => tag.outerHTML)
       .join('\n');
       
-    // Write the document to the iframe
     iframeDoc.write(`
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
         <head>
           <meta charset="utf-8" />
-          <title>فاتورة - ${selectedSale?.invoice_number || 'Receipt'}</title>
+          <title>فاتورة</title>
           ${styles}
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
-            @page { margin: 0; }
+          <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+          <style id="base-print-style">
             html, body {
               margin: 0 !important;
               padding: 0 !important;
-              background: #ffffff !important;
-              font-family: 'Cairo', system-ui, -apple-system, sans-serif !important;
-              height: auto !important;
-              overflow: visible !important;
-            }
-            body {
+              background: #fff !important;
+              font-family: 'Cairo', sans-serif !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
             }
             #thermal-receipt {
-              width: 100% !important;
+              width: 80mm !important;
               max-width: 80mm !important;
               margin: 0 !important;
               padding: 2mm !important;
               box-shadow: none !important;
               border: none !important;
-              page-break-inside: avoid !important;
             }
           </style>
         </head>
@@ -75,18 +68,31 @@ export const ReceiptModal: React.FC = () => {
     `);
     iframeDoc.close();
     
-    // Wait for styles and fonts to be applied
+    // Wait for styles/fonts, then measure REAL height inside iframe, then print
     setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
+      const iframeReceipt = iframeDoc.getElementById('thermal-receipt');
+      if (!iframeReceipt) return;
       
-      // Cleanup after print dialog closes
+      // Measure the actual rendered height inside the iframe (after styles applied)
+      const actualHeight = iframeReceipt.scrollHeight;
+      // Convert px to mm: 1px = 25.4/96 mm
+      const heightMm = Math.ceil(actualHeight * (25.4 / 96)) + 5;
+      
+      // Inject @page with EXACT dimensions — this is the key to preventing pagination
+      const pageStyle = iframeDoc.createElement('style');
+      pageStyle.textContent = `@page { size: 80mm ${heightMm}mm !important; margin: 0 !important; }`;
+      iframeDoc.head.appendChild(pageStyle);
+      
+      // Small delay to let the injected @page rule take effect
       setTimeout(() => {
-        if (iframe.parentNode) {
-          document.body.removeChild(iframe);
-        }
-      }, 500);
-    }, 500);
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        
+        setTimeout(() => {
+          if (iframe.parentNode) document.body.removeChild(iframe);
+        }, 1000);
+      }, 100);
+    }, 600);
   };
 
   if (!isReceiptModalOpen || !selectedSale) return null;
