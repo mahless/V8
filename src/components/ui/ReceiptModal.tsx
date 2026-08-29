@@ -58,7 +58,7 @@ export const ReceiptModal: React.FC = () => {
               <span className="font-bold text-slate-900">{selectedSale.vehicle?.plate_display || 'بدون لوحة'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">العميل / السائق:</span>
+              <span className="text-slate-500">العميل:</span>
               <span className="text-slate-800 font-semibold">{selectedSale.vehicle?.driver_name || 'عميل نقدي'}</span>
             </div>
           </div>
@@ -107,7 +107,7 @@ export const ReceiptModal: React.FC = () => {
           <div className="text-center pt-3 border-t border-dashed border-slate-300 space-y-1.5">
             {/* Address */}
             <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2 text-[11px] font-bold text-slate-900 leading-snug">
-              📍 العنوان: الدخيلة طريق اسكندريه مطروح الرئيسى قبل المحكمة أمام مستشفى قصر الشفاء من ناحية البحر
+              📍  العنوان: الدخيلة طريق البحر الرئيسي قبل المحكمة بجوار عماره المأذون
             </div>
 
             {/* Thank you message */}

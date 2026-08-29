@@ -56,31 +56,34 @@
     size: 80mm auto;
     margin: 0;
   }
-  body * {
-    visibility: hidden;
-  }
-  /* Strip positioning from parents so receipt anchors to body top-left */
-  body, #root, .fixed, .relative, .absolute {
-    position: static !important;
-    transform: none !important;
+  html, body, #root {
+    background: white !important;
     margin: 0 !important;
     padding: 0 !important;
   }
-  #thermal-receipt,
-  #thermal-receipt * {
-    visibility: visible;
+  /* Hide the modal backdrop during print */
+  .fixed.inset-0.bg-slate-900\/40 {
+    display: none !important;
   }
+  /* Remove Modal constraints */
+  .fixed, .relative, .absolute {
+    position: static !important;
+    transform: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+  }
+  /* Ensure thermal receipt defines the document size */
   #thermal-receipt {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
+    width: 80mm !important;
     max-width: 80mm !important;
     margin: 0 !important;
     padding: 2mm !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: #ffffff !important;
+  }
+  /* Hide buttons area */
+  #thermal-receipt + div {
+    display: none !important;
   }
 }
 

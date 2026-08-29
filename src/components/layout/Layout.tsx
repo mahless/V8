@@ -11,6 +11,27 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const [isPrinting, setIsPrinting] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleBeforePrint = () => setIsPrinting(true);
+    const handleAfterPrint = () => setIsPrinting(false);
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, []);
+
+  if (isPrinting) {
+    return (
+      <div className="bg-white min-h-screen text-black" dir="rtl">
+        <ReceiptModal />
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-[#f8fafc] text-[#0f172a] font-['Cairo',sans-serif] dir-rtl" dir="rtl">
       {/* Desktop Navigation */}
