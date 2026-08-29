@@ -61,15 +61,20 @@
     margin: 0;
   }
   
+  html, body {
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
   body.print-active #root {
     display: none !important;
   }
   
   #print-section {
     display: block !important;
-    position: absolute;
-    top: 0;
-    left: 0;
+    position: relative !important;
     width: 100% !important;
     max-width: 80mm !important;
     margin: 0 !important;
@@ -80,7 +85,7 @@
     width: 100% !important;
     max-width: 80mm !important;
     margin: 0 !important;
-    padding: 2mm !important;
+    padding: 0 2mm !important;
     border: none !important;
     box-shadow: none !important;
     background: #ffffff !important;
