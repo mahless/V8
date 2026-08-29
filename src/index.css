@@ -48,6 +48,10 @@
 }
 
 @media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   @page {
     size: 80mm auto;
     margin: 0;
@@ -55,23 +59,28 @@
   body * {
     visibility: hidden;
   }
+  /* Strip positioning from parents so receipt anchors to body top-left */
+  body, #root, .fixed, .relative, .absolute {
+    position: static !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
   #thermal-receipt,
   #thermal-receipt * {
     visibility: visible;
   }
   #thermal-receipt {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
     width: 100% !important;
     max-width: 80mm !important;
-    margin: 0 auto !important;
-    padding: 6mm !important;
+    margin: 0 !important;
+    padding: 2mm !important;
     border: none !important;
     box-shadow: none !important;
     background: #ffffff !important;
-    color: #000000 !important;
   }
 }
 
