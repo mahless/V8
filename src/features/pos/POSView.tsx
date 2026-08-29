@@ -118,6 +118,7 @@ export const POSView: React.FC = () => {
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
+      showToast('بيانات غير مكتملة', 'يرجى مراجعة الحقول باللون الأحمر وتصحيحها', 'error');
       return;
     }
 

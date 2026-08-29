@@ -21,7 +21,7 @@ export const Toast: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-20 sm:bottom-6 right-4 left-4 sm:left-auto z-50 max-w-sm animate-slide-up">
+    <div className="fixed bottom-20 sm:bottom-6 right-4 left-4 sm:left-auto z-[9999] max-w-sm animate-slide-up">
       <div
         className={cn(
           'flex items-start gap-3 p-4 rounded-2xl border shadow-lg backdrop-blur-md transition-all',
