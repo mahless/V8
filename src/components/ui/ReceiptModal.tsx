@@ -59,17 +59,8 @@ export const ReceiptModal: React.FC = () => {
                 max-width: 74mm !important;
                 margin: 0 auto !important;
               }
-              /* Enhance contrast for thermal printers while preserving layout */
               #thermal-receipt {
-                border: 2px solid #000 !important;
                 box-shadow: none !important;
-              }
-              .border-dashed {
-                border-color: #000 !important;
-                border-style: dashed !important;
-              }
-              .border-b, .border-t {
-                border-color: #000 !important;
               }
             }
             body {
