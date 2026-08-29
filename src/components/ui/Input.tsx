@@ -16,14 +16,12 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
       if (original) {
         const converted = convertArabicDigitsToEnglish(original);
         if (converted !== original) {
-          // Create a proxy/clone of the event to safely override the value without mutating the native DOM node directly in a way that crashes React
-          const clonedEvent = {
-            ...e,
-            target: { ...e.target, value: converted },
-            currentTarget: { ...e.currentTarget, value: converted },
-          } as React.ChangeEvent<HTMLInputElement>;
+          // Use Object.create to preserve the prototype chain of the SyntheticEvent
+          const clonedEvent = Object.create(e);
+          Object.defineProperty(clonedEvent, 'target', { value: { ...e.target, value: converted } });
+          Object.defineProperty(clonedEvent, 'currentTarget', { value: { ...e.currentTarget, value: converted } });
           
-          onChange(clonedEvent);
+          onChange(clonedEvent as React.ChangeEvent<HTMLInputElement>);
           return;
         }
       }

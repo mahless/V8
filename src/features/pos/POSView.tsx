@@ -85,6 +85,7 @@ export const POSView: React.FC = () => {
   const [newPhone, setNewPhone] = useState('');
   const [newNotes, setNewNotes] = useState('');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [isSavingVehicle, setIsSavingVehicle] = useState(false);
 
   // Filtered Services for active category
   const activeServices = services.filter((s) => s.category_id === activeCategory && s.is_active);
@@ -124,13 +125,14 @@ export const POSView: React.FC = () => {
 
     // Check duplicate
     const existing = searchVehicles(plateDisplay).find(
-      (v) => v.plate_display.replace(/\s+/g, '') === plateDisplay.replace(/\s+/g, '')
+      (v) => (v.plate_display || '').replace(/\s+/g, '') === plateDisplay.replace(/\s+/g, '')
     );
     if (existing) {
       showToast('سيارة مكررة', 'رقم اللوحة هذا مسجل بالفعل لسائق آخر', 'error');
       return;
     }
 
+    setIsSavingVehicle(true);
     try {
       const created = await addVehicle({
         plate_letters: newPlateLetters.trim(),
@@ -151,6 +153,8 @@ export const POSView: React.FC = () => {
     } catch (err) {
       showToast('خطأ في الحفظ', 'تعذر إضافة السيارة إلى قاعدة البيانات', 'error');
       return;
+    } finally {
+      setIsSavingVehicle(false);
     }
 
     setIsAddingNewVehicle(false);
@@ -865,10 +869,10 @@ export const POSView: React.FC = () => {
           />
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="ghost" type="button" onClick={() => setIsAddingNewVehicle(false)}>
+            <Button variant="ghost" type="button" onClick={() => setIsAddingNewVehicle(false)} disabled={isSavingVehicle}>
               إلغاء
             </Button>
-            <Button type="submit">حفظ واختيار السيارة</Button>
+            <Button type="submit" isLoading={isSavingVehicle}>حفظ واختيار السيارة</Button>
           </div>
         </form>
       </Modal>
