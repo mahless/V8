@@ -56,10 +56,17 @@ export const POSView: React.FC = () => {
     setPaymentMethod,
     posNotes,
     setPosNotes,
+    discountPercent,
+    setDiscountPercent,
     showToast,
     showConfirmModal,
     setActiveReceiptSaleId,
     setReceiptModalOpen,
+    openTickets,
+    activeTicketId,
+    createNewTicket,
+    switchTicket,
+    closeActiveTicket,
   } = useUIStore();
 
   // Local POS State
@@ -68,7 +75,8 @@ export const POSView: React.FC = () => {
   const [isAddingNewVehicle, setIsAddingNewVehicle] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeIdempotencyKey, setActiveIdempotencyKey] = useState<string | null>(null);
-  const [discountPercent, setDiscountPercent] = useState<number>(0);
+
+  // Removed useEffect that forces ticket creation on mount.
 
   // New Vehicle Modal Form state
   const [newPlateLetters, setNewPlateLetters] = useState('');
@@ -194,8 +202,7 @@ export const POSView: React.FC = () => {
         showToast('تم الدفع بنجاح 🎉', 'تم حفظ الفاتورة وتحديث المخزون وسجل السيارة', 'success');
         setActiveReceiptSaleId(result.saleId);
         setReceiptModalOpen(true);
-        clearCart();
-        setDiscountPercent(0);
+        closeActiveTicket(); // Removes current ticket and switches to next, or creates new if empty
         setActiveIdempotencyKey(null); // Reset key after successful completion
       } else {
         showToast('تعذر إتمام العملية', result.error || 'حدث خطأ غير متوقع. يمكنك جلب الفاتورة عند توفر الاتصال.', 'error');
@@ -242,10 +249,62 @@ export const POSView: React.FC = () => {
         )}
       </div>
 
-      {/* Main Grid: POS Controls (Left/Center) + Order Summary (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Vehicle Search + Service Selection (8 cols) */}
-        <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+      {/* Main Grid: Tickets (Sidebar) + POS Controls (Center) + Order Summary (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 xl:grid-cols-12 gap-4 items-start">
+        
+        {/* Active Tickets Sidebar (2 cols on XL, 3 on LG) */}
+        <div className="lg:col-span-3 xl:col-span-2 space-y-3">
+          <Button
+            onClick={() => {
+              if (!activeTicketId && !selectedVehicle && cartItems.length === 0) {
+                 showToast('معلومات', 'أنت بالفعل في تذكرة جديدة فارغة', 'info');
+                 return;
+              }
+              createNewTicket();
+            }}
+            className="w-full shadow-sm"
+            variant="outline"
+            icon={<PlusCircle className="w-4 h-4 text-blue-600" />}
+          >
+            تذكرة جديدة
+          </Button>
+          
+          <div className="space-y-2 max-h-[75vh] overflow-y-auto no-scrollbar pb-10">
+            {openTickets.map((ticket, index) => {
+               const isActive = ticket.id === activeTicketId;
+               const ticketTotal = ticket.cartItems.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+               const ticketDiscount = (ticketTotal * ticket.discountPercent) / 100;
+               const netTotal = Math.max(0, ticketTotal - ticketDiscount);
+
+               return (
+                 <div
+                   key={ticket.id}
+                   onClick={() => switchTicket(ticket.id)}
+                   className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                     isActive 
+                       ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-600/30' 
+                       : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-slate-50 text-slate-700'
+                   }`}
+                 >
+                   <div className="flex items-center justify-between mb-1.5">
+                     <span className="text-xs font-bold opacity-90">تذكرة #{index + 1}</span>
+                     {isActive && <div className="w-2 h-2 rounded-full bg-white shadow-sm" />}
+                   </div>
+                   <div className="text-sm font-black truncate mb-2">
+                     {ticket.vehicle ? ticket.vehicle.plate_display : 'لم تحدد سيارة'}
+                   </div>
+                   <div className={`text-[11px] font-medium flex justify-between items-center ${isActive ? 'text-blue-100' : 'text-slate-500'}`}>
+                     <span className="bg-white/20 px-1.5 py-0.5 rounded-md">{ticket.cartItems.length} عنصر</span>
+                     <span className="font-mono font-bold">{netTotal} ج.م</span>
+                   </div>
+                 </div>
+               );
+            })}
+          </div>
+        </div>
+
+        {/* Center Column: Vehicle Search + Service Selection (6 cols on XL, 5 on LG) */}
+        <div className="lg:col-span-5 xl:col-span-6 space-y-6">
           {/* 1. Vehicle Selection Card */}
           <Card className="border-blue-100 shadow-sm">
             <CardHeader className="pb-3 border-blue-50">
@@ -537,7 +596,7 @@ export const POSView: React.FC = () => {
         </div>
 
         {/* Right Column: Order Summary & Payment Sticky Panel (4 cols) */}
-        <div className="lg:col-span-5 xl:col-span-4 lg:sticky lg:top-20 space-y-4">
+        <div className="lg:col-span-4 xl:col-span-4 lg:sticky lg:top-20 space-y-4">
           <Card className="border-blue-200/80 shadow-md">
             <CardHeader className="bg-slate-50/80 -mx-5 -mt-5 p-5 border-b border-slate-100 rounded-t-2xl">
               <CardTitle className="text-slate-900 flex items-center justify-between w-full">

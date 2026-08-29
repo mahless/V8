@@ -120,7 +120,7 @@ export const ReceiptModal: React.FC = () => {
               V8 STANCE
             </h3>
             <p className="text-[11px] text-slate-800 font-mono font-bold mt-1" dir="ltr">
-              01200400638 / 01276379922
+              01240023011 / 01066821455
             </p>
           </div>
 
