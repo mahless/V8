@@ -10,16 +10,25 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, icon, type = 'text', onChange, ...props }, ref) => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.value) {
-        const original = e.target.value;
+      if (!onChange) return;
+      
+      const original = e.target.value;
+      if (original) {
         const converted = convertArabicDigitsToEnglish(original);
         if (converted !== original) {
-          e.target.value = converted;
+          // Create a proxy/clone of the event to safely override the value without mutating the native DOM node directly in a way that crashes React
+          const clonedEvent = {
+            ...e,
+            target: { ...e.target, value: converted },
+            currentTarget: { ...e.currentTarget, value: converted },
+          } as React.ChangeEvent<HTMLInputElement>;
+          
+          onChange(clonedEvent);
+          return;
         }
       }
-      if (onChange) {
-        onChange(e);
-      }
+      
+      onChange(e);
     };
 
     return (

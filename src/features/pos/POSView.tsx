@@ -144,6 +144,9 @@ export const POSView: React.FC = () => {
       if (created) {
         setSelectedVehicle(created);
         showToast('تم حفظ السيارة', `تم تسجيل السيارة ${plateDisplay} بنجاح`, 'success');
+      } else {
+        showToast('خطأ في الحفظ', 'تعذر إضافة السيارة إلى قاعدة البيانات', 'error');
+        return;
       }
     } catch (err) {
       showToast('خطأ في الحفظ', 'تعذر إضافة السيارة إلى قاعدة البيانات', 'error');
