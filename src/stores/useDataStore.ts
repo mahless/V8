@@ -666,11 +666,11 @@ export const useDataStore = create<DataStore>((set, get) => ({
     const q = query.trim().toLowerCase();
     return get().vehicles.filter(
       (v) =>
-        v.plate_display.toLowerCase().includes(q) ||
-        v.plate_letters.toLowerCase().includes(q) ||
-        v.plate_numbers.includes(q) ||
-        String(v.phone).includes(q) ||
-        v.driver_name.toLowerCase().includes(q)
+        String(v.plate_display || '').toLowerCase().includes(q) ||
+        String(v.plate_letters || '').toLowerCase().includes(q) ||
+        String(v.plate_numbers || '').includes(q) ||
+        String(v.phone || '').includes(q) ||
+        String(v.driver_name || '').toLowerCase().includes(q)
     );
   },
 

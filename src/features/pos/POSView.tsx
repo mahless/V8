@@ -126,7 +126,7 @@ export const POSView: React.FC = () => {
 
     // Check duplicate
     const existing = searchVehicles(plateDisplay).find(
-      (v) => (v.plate_display || '').replace(/\s+/g, '') === plateDisplay.replace(/\s+/g, '')
+      (v) => String(v.plate_display || '').replace(/\s+/g, '') === plateDisplay.replace(/\s+/g, '')
     );
     if (existing) {
       showToast('سيارة مكررة', 'رقم اللوحة هذا مسجل بالفعل لسائق آخر', 'error');
