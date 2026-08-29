@@ -57,18 +57,18 @@
     print-color-adjust: exact !important;
   }
   @page {
-    size: 80mm auto;
     margin: 0;
   }
   
   html, body {
-    height: auto !important;
+    height: max-content !important;
     min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: visible !important;
   }
   
-  body.print-active #root {
+  body.print-active > *:not(#print-section) {
     display: none !important;
   }
   
