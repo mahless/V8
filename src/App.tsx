@@ -31,6 +31,23 @@ export default function App() {
 
   useEffect(() => {
     fetchInitialData();
+    
+    // Auto refresh data when window regains focus to stay in sync with other devices
+    // Added a 30-second throttle to protect Google Sheets API limits
+    let lastFetchTime = Date.now();
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        if (now - lastFetchTime > 30000) { // 30 seconds cooldown
+          fetchInitialData();
+          lastFetchTime = now;
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [fetchInitialData]);
 
   // Enforce role guard: if user is employee and on a manager-only tab, fallback to POS

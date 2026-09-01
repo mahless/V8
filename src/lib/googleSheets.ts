@@ -2,8 +2,12 @@ export const GOOGLE_SHEETS_API_URL = 'https://script.google.com/macros/s/AKfycbw
 
 export async function fetchAllData() {
   try {
-    const response = await fetch(GOOGLE_SHEETS_API_URL, {
+    const url = new URL(GOOGLE_SHEETS_API_URL);
+    url.searchParams.append('t', Date.now().toString());
+
+    const response = await fetch(url.toString(), {
       redirect: "follow",
+      cache: "no-store",
     });
     if (!response.ok) throw new Error('Network response was not ok');
     const result = await response.json();
@@ -27,7 +31,7 @@ export async function sendAction(action: 'INSERT' | 'UPDATE' | 'DELETE' | 'RPC_P
       }),
       redirect: 'follow',
     });
-    
+
     if (!response.ok) throw new Error('Network response was not ok');
     const result = await response.json();
     if (!result.success) {
