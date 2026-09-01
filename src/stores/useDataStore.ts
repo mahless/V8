@@ -65,7 +65,7 @@ interface DataStore {
 
   createAtomicSale: (
     vehicleId: string,
-    items: Array<{ type: 'SERVICE' | 'PRODUCT'; id: string; quantity: number }>,
+    items: Array<{ type: 'SERVICE' | 'PRODUCT'; id: string; quantity: number; name?: string; price?: number }>,
     paymentMethod: PaymentMethod,
     notes?: string,
     idempotencyKey?: string,
@@ -402,8 +402,8 @@ export const useDataStore = create<DataStore>((set, get) => ({
       const inventoryMovements: InventoryMovement[] = [];
       
       rawItems.forEach(item => {
-        let price = 0;
-        let name = '';
+        let price = item.price || 0;
+        let name = item.name || '';
         if (item.type === 'SERVICE') {
           const s = get().services.find(s => s.id === item.id);
           if (s) { price = s.price; name = s.name; }
@@ -481,7 +481,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
       });
 
       if (!res.success) throw new Error(res.error);
-      
+
       await get().fetchInitialData();
       return { success: true, saleId, invoiceNumber };
     } catch(err: any) {
@@ -528,7 +528,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
       });
       
       if (!res.success) throw new Error(res.error);
-      
+
       await get().fetchInitialData();
       return { success: true, message: 'تم إلغاء الفاتورة واسترجاع المنتجات بنجاح' };
     } catch(err: any) {

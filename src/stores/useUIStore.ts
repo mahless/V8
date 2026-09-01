@@ -102,6 +102,10 @@ interface UIStore {
     onClose?: () => void;
   }) => void;
   closeConfirmModal: () => void;
+
+  // Global Settings
+  vipVisitsThreshold: number;
+  setVipVisitsThreshold: (threshold: number) => void;
 }
 
 export const useUIStore = create<UIStore>((set, get) => ({
@@ -405,4 +409,10 @@ export const useUIStore = create<UIStore>((set, get) => ({
     });
   },
   closeConfirmModal: () => set({ confirmModal: null }),
+
+  vipVisitsThreshold: Number(localStorage.getItem('v8_vip_threshold')) || 10,
+  setVipVisitsThreshold: (threshold) => {
+    localStorage.setItem('v8_vip_threshold', String(threshold));
+    set({ vipVisitsThreshold: threshold });
+  },
 }));

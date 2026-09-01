@@ -31,7 +31,7 @@ import {
   formatPlateLettersInput,
   convertArabicDigitsToEnglish,
 } from '../../lib/utils';
-import { PaymentMethod, Vehicle } from '../../types';
+import { PaymentMethod, Vehicle, Service } from '../../types';
 
 export const POSView: React.FC = () => {
   const {
@@ -77,6 +77,11 @@ export const POSView: React.FC = () => {
   const [activeIdempotencyKey, setActiveIdempotencyKey] = useState<string | null>(null);
 
   // Removed useEffect that forces ticket creation on mount.
+
+  // Custom Service Modal state
+  const [isCustomServiceModalOpen, setIsCustomServiceModalOpen] = useState(false);
+  const [customServiceName, setCustomServiceName] = useState('');
+  const [customServicePrice, setCustomServicePrice] = useState('');
 
   // New Vehicle Modal Form state
   const [newPlateLetters, setNewPlateLetters] = useState('');
@@ -168,6 +173,32 @@ export const POSView: React.FC = () => {
     setFormErrors({});
   };
 
+  // Handle Add Custom Service
+  const handleAddCustomService = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customServiceName.trim() || !customServicePrice) {
+      showToast('خطأ', 'يرجى إدخال اسم وسعر الخدمة', 'error');
+      return;
+    }
+
+    const customId = `custom_srv_${Date.now()}`;
+    const customService: Service = {
+      id: customId,
+      category_id: activeCategory,
+      name: customServiceName.trim(),
+      price: Number(customServicePrice),
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    addServiceToCart(customService, 1);
+
+    setIsCustomServiceModalOpen(false);
+    setCustomServiceName('');
+    setCustomServicePrice('');
+  };
+
   // Handle Atomic POS Checkout
   const handleCompletePOS = async () => {
     if (isSubmitting) return; // Guard against double click
@@ -194,6 +225,8 @@ export const POSView: React.FC = () => {
       type: item.type,
       id: item.id,
       quantity: item.quantity,
+      name: item.name,
+      price: item.price
     }));
 
     try {
@@ -533,7 +566,21 @@ export const POSView: React.FC = () => {
                       </div>
                     );
                   })
-                : activeServices.map((srv) => {
+                : (
+                    <>
+                      {/* Custom Service Card */}
+                      <div
+                        onClick={() => setIsCustomServiceModalOpen(true)}
+                        className="p-4 rounded-2xl border transition-all flex flex-col justify-center items-center bg-blue-50/50 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 cursor-pointer min-h-[120px]"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-2">
+                          <Plus className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <h4 className="text-sm font-bold text-blue-800 text-center">إدخال خدمة يدوية</h4>
+                        <p className="text-[11px] text-blue-600/70 mt-1 text-center">باسم وسعر مخصص</p>
+                      </div>
+
+                      {activeServices.map((srv) => {
                     const cartItem = cartItems.find((i) => i.id === srv.id && i.type === 'SERVICE');
                     const quantity = cartItem ? cartItem.quantity : 0;
                     const isSelected = quantity > 0;
@@ -599,6 +646,8 @@ export const POSView: React.FC = () => {
                       </div>
                     );
                   })}
+                    </>
+                  )}
             </div>
           </Card>
         </div>
@@ -858,6 +907,7 @@ export const POSView: React.FC = () => {
             label="رقم الهاتف (11 رقم)"
             placeholder="01012345678"
             value={newPhone}
+            maxLength={11}
             onChange={(e) => setNewPhone(e.target.value)}
             error={formErrors.phone}
           />
@@ -874,6 +924,38 @@ export const POSView: React.FC = () => {
               إلغاء
             </Button>
             <Button type="submit" isLoading={isSavingVehicle}>حفظ واختيار السيارة</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Add Custom Manual Service */}
+      <Modal
+        isOpen={isCustomServiceModalOpen}
+        onClose={() => setIsCustomServiceModalOpen(false)}
+        title="إدخال خدمة يدوية"
+        description="أدخل اسم وسعر الخدمة لإضافتها للفاتورة الحالية فقط"
+      >
+        <form onSubmit={handleAddCustomService} className="space-y-4">
+          <Input
+            label="اسم الخدمة"
+            placeholder="مثال: غسيل موتور"
+            value={customServiceName}
+            onChange={(e) => setCustomServiceName(e.target.value)}
+            autoFocus
+          />
+          <Input
+            label="سعر الخدمة (ج.م)"
+            type="number"
+            placeholder="مثال: 150"
+            value={customServicePrice}
+            onChange={(e) => setCustomServicePrice(e.target.value)}
+          />
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="ghost" type="button" onClick={() => setIsCustomServiceModalOpen(false)}>
+              إلغاء
+            </Button>
+            <Button type="submit">إضافة للسلة</Button>
           </div>
         </form>
       </Modal>

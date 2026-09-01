@@ -22,6 +22,8 @@ import {
   Star,
   CheckCircle2,
   ChevronDown,
+  Edit2,
+  Settings,
 } from 'lucide-react';
 import {
   formatArabicDate,
@@ -34,8 +36,8 @@ import {
 import { Vehicle } from '../../types';
 
 export const VehiclesView: React.FC = () => {
-  const { vehicles, sales, addVehicle, searchVehicles, claimVipReward } = useDataStore();
-  const { setActiveTab, setSelectedVehicle, showToast, showConfirmModal } = useUIStore();
+  const { vehicles, sales, addVehicle, updateVehicle, searchVehicles, claimVipReward } = useDataStore();
+  const { setActiveTab, setSelectedVehicle, showToast, showConfirmModal, vipVisitsThreshold, setVipVisitsThreshold } = useUIStore();
 
   const [activeSubTab, setActiveSubTab] = useState<'all' | 'vip'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,6 +55,15 @@ export const VehiclesView: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Edit Visits Modal State
+  const [isEditVisitsModalOpen, setIsEditVisitsModalOpen] = useState(false);
+  const [editVisitsValue, setEditVisitsValue] = useState<number | string>('');
+  const [isUpdatingVisits, setIsUpdatingVisits] = useState(false);
+
+  // VIP Threshold Edit Modal
+  const [isEditThresholdModalOpen, setIsEditThresholdModalOpen] = useState(false);
+  const [editThresholdValue, setEditThresholdValue] = useState<number | string>('');
+
   // VIP Logic Helper
   const getVipEligibleVisits = (v: Vehicle) => {
     const visits = v.visits_count || 0;
@@ -60,7 +71,7 @@ export const VehiclesView: React.FC = () => {
     return Math.max(0, visits - lastRewarded);
   };
 
-  const vipVehicles = vehicles.filter((v) => getVipEligibleVisits(v) >= 10);
+  const vipVehicles = vehicles.filter((v) => getVipEligibleVisits(v) >= vipVisitsThreshold);
 
   // Base list depending on subTab
   const baseList = activeSubTab === 'vip' ? vipVehicles : vehicles;
@@ -126,7 +137,7 @@ export const VehiclesView: React.FC = () => {
     const eligibleVisits = getVipEligibleVisits(vehicle);
     showConfirmModal({
       title: 'تقديم خصم العميل المميز ⭐',
-      message: `هل قمت بتقديم الخصم/المكافأة للعميل "${vehicle.driver_name}"؟ سيتم حذف العميل من قائمة المميزين مؤقتاً حتى يكمل 10 زيارات جديدة (${eligibleVisits} زيارات مسجلة حالياً).`,
+      message: `هل قمت بتقديم الخصم/المكافأة للعميل "${vehicle.driver_name}"؟ سيتم حذف العميل من قائمة المميزين مؤقتاً حتى يكمل ${vipVisitsThreshold} زيارات جديدة (${eligibleVisits} زيارات مسجلة حالياً).`,
       confirmText: 'نعم، تقديم الخصم وإعادة التعيين',
       cancelText: 'إلغاء',
       type: 'warning',
@@ -135,7 +146,7 @@ export const VehiclesView: React.FC = () => {
           await claimVipReward(vehicle.id);
           showToast(
             'تم تقديم الخصم ⭐',
-            `تم استهلاك مكافأة العميل ${vehicle.driver_name} وإزالته لحين إتمام 10 زيارات قادمة`,
+            `تم استهلاك مكافأة العميل ${vehicle.driver_name} وإزالته لحين إتمام ${vipVisitsThreshold} زيارات قادمة`,
             'success'
           );
         } catch (err) {
@@ -143,6 +154,39 @@ export const VehiclesView: React.FC = () => {
         }
       },
     });
+  };
+
+  const handleUpdateVisits = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProfileVehicle) return;
+    const visits = Number(editVisitsValue);
+    if (isNaN(visits) || visits < 0) {
+      showToast('خطأ', 'أدخل رقم صحيح', 'error');
+      return;
+    }
+    
+    setIsUpdatingVisits(true);
+    try {
+      await updateVehicle(selectedProfileVehicle.id, { visits_count: visits });
+      setSelectedProfileVehicle({ ...selectedProfileVehicle, visits_count: visits });
+      showToast('تم بنجاح', 'تم تعديل عدد الزيارات', 'success');
+      setIsEditVisitsModalOpen(false);
+    } catch (err) {
+      showToast('خطأ', 'فشل تعديل الزيارات', 'error');
+    } finally {
+      setIsUpdatingVisits(false);
+    }
+  };
+  const handleUpdateThreshold = (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = Number(editThresholdValue);
+    if (isNaN(val) || val < 1) {
+      showToast('خطأ', 'يرجى إدخال رقم صحيح أكبر من صفر', 'error');
+      return;
+    }
+    setVipVisitsThreshold(val);
+    showToast('تم التعديل', `تم تغيير الحد الأقصى للزيارات المميزة إلى ${val}`, 'success');
+    setIsEditThresholdModalOpen(false);
   };
 
   return (
@@ -193,12 +237,23 @@ export const VehiclesView: React.FC = () => {
           }`}
         >
           <Star className="w-4 h-4 fill-amber-300 text-amber-300" />
-          <span>عميل مميز (خصم 10 زيارات)</span>
+          <span>عميل مميز (خصم {vipVisitsThreshold} زيارات)</span>
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
             activeSubTab === 'vip' ? 'bg-amber-700 text-white' : 'bg-amber-200 text-amber-900'
           }`}>
             {vipVehicles.length}
           </span>
+        </button>
+
+        <button
+          onClick={() => {
+            setEditThresholdValue(vipVisitsThreshold);
+            setIsEditThresholdModalOpen(true);
+          }}
+          className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+          title="تعديل عدد زيارات العميل المميز"
+        >
+          <Settings className="w-4 h-4" />
         </button>
       </div>
 
@@ -220,14 +275,14 @@ export const VehiclesView: React.FC = () => {
               {filteredVehicles.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-xs">
                   {activeSubTab === 'vip'
-                    ? 'لا يوجد عملاء مميزين مستحقين للخصم حالياً (يتطلب 10 زيارات أو أكثر).'
+                    ? `لا يوجد عملاء مميزين مستحقين للخصم حالياً (يتطلب ${vipVisitsThreshold} زيارات أو أكثر).`
                     : `لا توجد نتائج مطابقة لـ "${searchQuery}"`}
                 </div>
               ) : (
                 filteredVehicles.slice(0, visibleVehiclesCount).map((v) => {
                   const isSelected = selectedProfileVehicle?.id === v.id;
                   const eligibleVisits = getVipEligibleVisits(v);
-                  const isVip = eligibleVisits >= 10;
+                  const isVip = eligibleVisits >= vipVisitsThreshold;
 
                   return (
                     <div key={v.id} className="relative group">
@@ -254,7 +309,7 @@ export const VehiclesView: React.FC = () => {
                                 handleClaimVipDiscount(v);
                               }}
                               className="p-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all cursor-pointer shadow-xs border border-rose-200"
-                              title="تقديم الخصم وحذف من القائمة حتى 10 زيارات جديدة"
+                              title={`تقديم الخصم وحذف من القائمة حتى ${vipVisitsThreshold} زيارات جديدة`}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -307,7 +362,7 @@ export const VehiclesView: React.FC = () => {
                         <h2 className="text-base sm:text-lg font-black text-slate-900">
                           {selectedProfileVehicle.driver_name}
                         </h2>
-                        {getVipEligibleVisits(selectedProfileVehicle) >= 10 && (
+                        {getVipEligibleVisits(selectedProfileVehicle) >= vipVisitsThreshold && (
                           <Badge variant="green" size="xs" className="bg-amber-500 text-white">
                             ⭐ عميل مميز
                           </Badge>
@@ -333,17 +388,27 @@ export const VehiclesView: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-3 gap-3 mt-4 pt-2">
-                  <div className="p-3 bg-white rounded-xl border border-slate-100 text-center">
+                  <div className="p-3 bg-white rounded-xl border border-slate-100 text-center relative group">
                     <span className="text-[10px] text-slate-400 font-bold block">إجمالي الزيارات</span>
                     <span className="text-lg font-black text-slate-900 font-mono">
                       {selectedProfileVehicle.visits_count || 0}
                     </span>
+                    <button
+                      onClick={() => {
+                        setEditVisitsValue(selectedProfileVehicle.visits_count || 0);
+                        setIsEditVisitsModalOpen(true);
+                      }}
+                      className="absolute top-2 left-2 p-1.5 bg-slate-50 text-slate-400 rounded-lg hover:bg-blue-100 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="تعديل عدد الزيارات"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
                   <div className="p-3 bg-white rounded-xl border border-slate-100 text-center">
                     <span className="text-[10px] text-slate-400 font-bold block">زيارات الدورة الحالية</span>
                     <span className="text-lg font-black text-amber-600 font-mono">
-                      {getVipEligibleVisits(selectedProfileVehicle)} / 10
+                      {getVipEligibleVisits(selectedProfileVehicle)} / {vipVisitsThreshold}
                     </span>
                   </div>
 
@@ -353,11 +418,11 @@ export const VehiclesView: React.FC = () => {
                   </div>
                 </div>
 
-                {getVipEligibleVisits(selectedProfileVehicle) >= 10 && (
+                {getVipEligibleVisits(selectedProfileVehicle) >= vipVisitsThreshold && (
                   <div className="mt-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3 text-xs text-amber-900 font-bold">
                     <div className="flex items-center gap-2">
                       <Gift className="w-5 h-5 text-amber-600 shrink-0" />
-                      <span>العميل مستحق لخصم الزيارة العاشرة ⭐</span>
+                      <span>العميل مستحق لخصم الزيارة المميزة ⭐</span>
                     </div>
                     <Button
                       size="sm"
@@ -481,6 +546,7 @@ export const VehiclesView: React.FC = () => {
             label="رقم الهاتف"
             placeholder="01012345678"
             value={phone}
+            maxLength={11}
             onChange={(e) => setPhone(e.target.value)}
             error={errors.phone}
           />
@@ -497,6 +563,58 @@ export const VehiclesView: React.FC = () => {
               إلغاء
             </Button>
             <Button type="submit">حفظ السيارة</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Edit Visits */}
+      <Modal
+        isOpen={isEditVisitsModalOpen}
+        onClose={() => setIsEditVisitsModalOpen(false)}
+        title="تعديل إجمالي الزيارات"
+        description="تغيير عدد الزيارات يدوياً لهذه السيارة"
+      >
+        <form onSubmit={handleUpdateVisits} className="space-y-4">
+          <Input
+            label="عدد الزيارات"
+            type="number"
+            min="0"
+            value={editVisitsValue}
+            onChange={(e) => setEditVisitsValue(e.target.value)}
+            autoFocus
+          />
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="ghost" type="button" onClick={() => setIsEditVisitsModalOpen(false)}>
+              إلغاء
+            </Button>
+            <Button type="submit" isLoading={isUpdatingVisits}>تأكيد وحفظ</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Edit VIP Threshold */}
+      <Modal
+        isOpen={isEditThresholdModalOpen}
+        onClose={() => setIsEditThresholdModalOpen(false)}
+        title="تعديل حد الزيارات المميزة"
+        description="تغيير عدد الزيارات المطلوب ليصبح العميل مميزاً ويستحق التنبيه والخصم"
+      >
+        <form onSubmit={handleUpdateThreshold} className="space-y-4">
+          <Input
+            label="عدد الزيارات المطلوب"
+            type="number"
+            min="1"
+            value={editThresholdValue}
+            onChange={(e) => setEditThresholdValue(e.target.value)}
+            autoFocus
+          />
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="ghost" type="button" onClick={() => setIsEditThresholdModalOpen(false)}>
+              إلغاء
+            </Button>
+            <Button type="submit">تأكيد وحفظ</Button>
           </div>
         </form>
       </Modal>
