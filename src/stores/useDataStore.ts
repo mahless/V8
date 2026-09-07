@@ -15,13 +15,26 @@ import {
   Profile,
   UserRole
 } from '../types';
-import { fetchAllData, sendAction } from '../lib/googleSheets';
+import { fetchAllData, sendAction, syncPendingActions } from '../lib/googleSheets';
+import { 
+  updateLocalTable, 
+  getSyncQueueCount, 
+  isOnline as checkIsOnline, 
+  getLastSyncTime,
+  saveDataLocally
+} from '../lib/offlineStorage';
 
 const generateId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
 interface DataStore {
   // Loading State
   isLoading: boolean;
+
+  // Offline State
+  pendingSyncCount: number;
+  isOffline: boolean;
+  lastSyncTime: string | null;
+  isSyncing: boolean;
 
   // Master Collections
   serviceCategories: ServiceCategory[];
@@ -48,6 +61,11 @@ interface DataStore {
 
   // Fetch Action
   fetchInitialData: () => Promise<void>;
+
+  // Sync Action
+  syncPendingData: () => Promise<{ synced: number; failed: number; remaining: number }>;
+  updateOnlineStatus: (online: boolean) => void;
+  refreshSyncCount: () => void;
 
   // Data Actions
   addVehicle: (vehicleData: Omit<Vehicle, 'id' | 'created_at' | 'updated_at' | 'visits_count' | 'total_spent'>) => Promise<Vehicle | null>;
@@ -96,6 +114,12 @@ interface DataStore {
 export const useDataStore = create<DataStore>((set, get) => ({
   isLoading: false,
 
+  // Offline state
+  pendingSyncCount: getSyncQueueCount(),
+  isOffline: !checkIsOnline(),
+  lastSyncTime: getLastSyncTime(),
+  isSyncing: false,
+
   serviceCategories: [],
   services: [],
   productCategories: [],
@@ -139,11 +163,36 @@ export const useDataStore = create<DataStore>((set, get) => ({
     });
   },
 
+  updateOnlineStatus: (online) => set({ isOffline: !online }),
+
+  refreshSyncCount: () => set({ pendingSyncCount: getSyncQueueCount() }),
+
+  syncPendingData: async () => {
+    set({ isSyncing: true });
+    try {
+      const result = await syncPendingActions();
+      set({ 
+        pendingSyncCount: result.remaining,
+        lastSyncTime: result.synced > 0 ? new Date().toISOString() : get().lastSyncTime
+      });
+      // Re-fetch fresh data from server after successful sync
+      if (result.synced > 0 && checkIsOnline()) {
+        await get().fetchInitialData();
+      }
+      return result;
+    } finally {
+      set({ isSyncing: false });
+    }
+  },
+
   fetchInitialData: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, isOffline: !checkIsOnline() });
     try {
       const response = await fetchAllData();
-      if (!response.success || !response.data) throw new Error("Failed to load data from Sheets");
+      if (!response.success || !response.data) {
+        console.warn('Failed to load data — no API and no cache available');
+        return;
+      }
 
       const d = response.data;
       
@@ -247,10 +296,12 @@ export const useDataStore = create<DataStore>((set, get) => ({
         expenses: expensesData,
         profiles: profilesData,
         currentProfile: activeProfile,
-        currentRole: activeProfile ? activeProfile.role : get().currentRole
+        currentRole: activeProfile ? activeProfile.role : get().currentRole,
+        pendingSyncCount: getSyncQueueCount(),
+        lastSyncTime: getLastSyncTime(),
       });
     } catch (err) {
-      console.error('Error fetching initial data from Google Sheets:', err);
+      console.error('Error fetching initial data:', err);
     } finally {
       set({ isLoading: false });
     }
@@ -271,22 +322,23 @@ export const useDataStore = create<DataStore>((set, get) => ({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    try {
-      await sendAction('INSERT', { table: 'Vehicles', data: newVehicle });
-      set({ vehicles: [newVehicle, ...get().vehicles] });
-      return newVehicle;
-    } catch (e) {
-      console.error(e);
-      return null;
-    }
+    // Update local state immediately (optimistic)
+    const updatedVehicles = [newVehicle, ...get().vehicles];
+    set({ vehicles: updatedVehicles });
+    updateLocalTable('Vehicles', updatedVehicles);
+    // Send to API (queued if offline)
+    await sendAction('INSERT', { table: 'Vehicles', data: newVehicle });
+    set({ pendingSyncCount: getSyncQueueCount() });
+    return newVehicle;
   },
 
   updateVehicle: async (id, data) => {
     const updatedData = { ...data, updated_at: new Date().toISOString() };
-    await sendAction('UPDATE', { table: 'Vehicles', id, data: updatedData }).catch(console.error);
-    set({
-      vehicles: get().vehicles.map((v) => (v.id === id ? { ...v, ...updatedData } : v)),
-    });
+    const updatedVehicles = get().vehicles.map((v) => (v.id === id ? { ...v, ...updatedData } : v));
+    set({ vehicles: updatedVehicles });
+    updateLocalTable('Vehicles', updatedVehicles);
+    await sendAction('UPDATE', { table: 'Vehicles', id, data: updatedData });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   addService: async (serviceData) => {
@@ -300,31 +352,39 @@ export const useDataStore = create<DataStore>((set, get) => ({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    await sendAction('INSERT', { table: 'Services', data: newService }).catch(console.error);
-    set({ services: [...get().services, newService] });
+    const updatedServices = [...get().services, newService];
+    set({ services: updatedServices });
+    updateLocalTable('Services', updatedServices);
+    await sendAction('INSERT', { table: 'Services', data: newService });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   updateService: async (id, data) => {
     const updatedData = { ...data, updated_at: new Date().toISOString() };
-    await sendAction('UPDATE', { table: 'Services', id, data: updatedData }).catch(console.error);
-    set({
-      services: get().services.map((s) => (s.id === id ? { ...s, ...updatedData } : s)),
-    });
+    const updatedServices = get().services.map((s) => (s.id === id ? { ...s, ...updatedData } : s));
+    set({ services: updatedServices });
+    updateLocalTable('Services', updatedServices);
+    await sendAction('UPDATE', { table: 'Services', id, data: updatedData });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   deleteService: async (id) => {
-    await sendAction('DELETE', { table: 'Services', id }).catch(console.error);
-    set({ services: get().services.filter((s) => s.id !== id) });
+    const updatedServices = get().services.filter((s) => s.id !== id);
+    set({ services: updatedServices });
+    updateLocalTable('Services', updatedServices);
+    await sendAction('DELETE', { table: 'Services', id });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   toggleServiceActive: async (id) => {
     const srv = get().services.find((s) => s.id === id);
     if (!srv) return;
     const newStatus = !srv.is_active;
-    await sendAction('UPDATE', { table: 'Services', id, data: { is_active: newStatus } }).catch(console.error);
-    set({
-      services: get().services.map((s) => (s.id === id ? { ...s, is_active: newStatus } : s)),
-    });
+    const updatedServices = get().services.map((s) => (s.id === id ? { ...s, is_active: newStatus } : s));
+    set({ services: updatedServices });
+    updateLocalTable('Services', updatedServices);
+    await sendAction('UPDATE', { table: 'Services', id, data: { is_active: newStatus } });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   addProduct: async (productData) => {
@@ -343,21 +403,28 @@ export const useDataStore = create<DataStore>((set, get) => ({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    await sendAction('INSERT', { table: 'Products', data: newProduct }).catch(console.error);
-    set({ products: [...get().products, newProduct] });
+    const updatedProducts = [...get().products, newProduct];
+    set({ products: updatedProducts });
+    updateLocalTable('Products', updatedProducts);
+    await sendAction('INSERT', { table: 'Products', data: newProduct });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   updateProduct: async (id, data) => {
     const updatedData = { ...data, updated_at: new Date().toISOString() };
-    await sendAction('UPDATE', { table: 'Products', id, data: updatedData }).catch(console.error);
-    set({
-      products: get().products.map((p) => (p.id === id ? { ...p, ...updatedData } : p)),
-    });
+    const updatedProducts = get().products.map((p) => (p.id === id ? { ...p, ...updatedData } : p));
+    set({ products: updatedProducts });
+    updateLocalTable('Products', updatedProducts);
+    await sendAction('UPDATE', { table: 'Products', id, data: updatedData });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   deleteProduct: async (id) => {
-    await sendAction('DELETE', { table: 'Products', id }).catch(console.error);
-    set({ products: get().products.filter((p) => p.id !== id) });
+    const updatedProducts = get().products.filter((p) => p.id !== id);
+    set({ products: updatedProducts });
+    updateLocalTable('Products', updatedProducts);
+    await sendAction('DELETE', { table: 'Products', id });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   addStock: async (productId, quantity, purchasePrice, notes) => {
@@ -365,8 +432,6 @@ export const useDataStore = create<DataStore>((set, get) => ({
     if (!product) return;
     const updatedStock = Number(product.current_stock) + quantity;
     const newPrice = purchasePrice > 0 ? purchasePrice : product.purchase_price;
-
-    await sendAction('UPDATE', { table: 'Products', id: productId, data: { current_stock: updatedStock, purchase_price: newPrice, updated_at: new Date().toISOString() } });
     
     const mv: InventoryMovement = {
       id: generateId('mv'),
@@ -379,12 +444,18 @@ export const useDataStore = create<DataStore>((set, get) => ({
       created_by: get().currentProfile?.id || '',
       created_at: new Date().toISOString()
     };
+
+    // Update local state first
+    const updatedProducts = get().products.map((p) => (p.id === productId ? { ...p, current_stock: updatedStock, purchase_price: newPrice } : p));
+    const updatedMovements = [mv, ...get().inventoryMovements];
+    set({ products: updatedProducts, inventoryMovements: updatedMovements });
+    updateLocalTable('Products', updatedProducts);
+    updateLocalTable('Inventory_Movements', updatedMovements);
+
+    // Send to API
+    await sendAction('UPDATE', { table: 'Products', id: productId, data: { current_stock: updatedStock, purchase_price: newPrice, updated_at: new Date().toISOString() } });
     await sendAction('INSERT', { table: 'Inventory_Movements', data: mv });
-    
-    set({
-      products: get().products.map((p) => (p.id === productId ? { ...p, current_stock: updatedStock, purchase_price: newPrice } : p)),
-      inventoryMovements: [mv, ...get().inventoryMovements]
-    });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   createAtomicSale: async (vehicleId, rawItems, paymentMethod, notes, idempotencyKey, discountPercent = 0) => {
@@ -471,7 +542,46 @@ export const useDataStore = create<DataStore>((set, get) => ({
         created_at: new Date().toISOString()
       };
 
-      const res = await sendAction('RPC_PROCESS_SALE', {
+      // Update local state immediately (optimistic)
+      const updatedSales = [{ ...newSale, items: newItems, payment: newPayment }, ...get().sales];
+      const updatedProducts = get().products.map(p => {
+        const mv = inventoryMovements.find(m => m.product_id === p.id);
+        if (mv) {
+          return { ...p, current_stock: Math.max(0, Number(p.current_stock) - mv.quantity) };
+        }
+        return p;
+      });
+      const updatedVehicles = get().vehicles.map(v => {
+        if (v.id === vehicleId) {
+          return {
+            ...v,
+            visits_count: (v.visits_count || 0) + 1,
+            total_spent: (v.total_spent || 0) + total,
+            last_visit_at: newSale.created_at,
+            updated_at: newSale.created_at
+          };
+        }
+        return v;
+      });
+      const updatedMovements = [...inventoryMovements, ...get().inventoryMovements];
+      const updatedPayments = [newPayment, ...get().payments];
+
+      set({
+        sales: updatedSales,
+        products: updatedProducts,
+        vehicles: updatedVehicles,
+        inventoryMovements: updatedMovements,
+        payments: updatedPayments,
+      });
+      updateLocalTable('Sales', updatedSales);
+      updateLocalTable('Products', updatedProducts);
+      updateLocalTable('Vehicles', updatedVehicles);
+      updateLocalTable('Inventory_Movements', updatedMovements);
+      updateLocalTable('Payments', updatedPayments);
+      updateLocalTable('Sale_Items', [...newItems, ...(get().sales.flatMap(s => s.items || []))]);
+
+      // Send to API (queued if offline)
+      await sendAction('RPC_PROCESS_SALE', {
         data: {
           sale: newSale,
           items: newItems,
@@ -479,10 +589,8 @@ export const useDataStore = create<DataStore>((set, get) => ({
           inventoryMovements
         }
       });
+      set({ pendingSyncCount: getSyncQueueCount() });
 
-      if (!res.success) throw new Error(res.error);
-
-      await get().fetchInitialData();
       return { success: true, saleId, invoiceNumber };
     } catch(err: any) {
       return { success: false, error: err.message };
@@ -519,17 +627,50 @@ export const useDataStore = create<DataStore>((set, get) => ({
         }
       });
 
-      const res = await sendAction('RPC_CANCEL_SALE', {
+      // Update local state immediately
+      const updatedSales = get().sales.map(s => 
+        s.id === saleId ? { ...s, status: 'CANCELLED' as const, notes: (s.notes || '') + '\n' + fullReason } : s
+      );
+      const updatedProducts = get().products.map(p => {
+        const mv = inventoryMovements.find(m => m.product_id === p.id);
+        if (mv) {
+          return { ...p, current_stock: Number(p.current_stock) + mv.quantity };
+        }
+        return p;
+      });
+      const updatedVehicles = get().vehicles.map(v => {
+        if (v.id === sale.vehicle_id) {
+          return {
+            ...v,
+            visits_count: Math.max(0, (v.visits_count || 0) - 1),
+            total_spent: Math.max(0, (v.total_spent || 0) - sale.total),
+          };
+        }
+        return v;
+      });
+      const updatedMovements = [...inventoryMovements, ...get().inventoryMovements];
+
+      set({
+        sales: updatedSales,
+        products: updatedProducts,
+        vehicles: updatedVehicles,
+        inventoryMovements: updatedMovements,
+      });
+      updateLocalTable('Sales', updatedSales);
+      updateLocalTable('Products', updatedProducts);
+      updateLocalTable('Vehicles', updatedVehicles);
+      updateLocalTable('Inventory_Movements', updatedMovements);
+
+      // Send to API (queued if offline)
+      await sendAction('RPC_CANCEL_SALE', {
         data: {
           saleId,
           reason: fullReason,
           inventoryMovements
         }
       });
-      
-      if (!res.success) throw new Error(res.error);
+      set({ pendingSyncCount: getSyncQueueCount() });
 
-      await get().fetchInitialData();
       return { success: true, message: 'تم إلغاء الفاتورة واسترجاع المنتجات بنجاح' };
     } catch(err: any) {
       return { success: false, error: err.message };
@@ -551,6 +692,11 @@ export const useDataStore = create<DataStore>((set, get) => ({
       created_by: currentProf?.id || '',
       created_at: new Date().toISOString()
     };
+
+    // Update local state first
+    const updatedExpenses = [newExpense, ...get().expenses];
+    set({ expenses: updatedExpenses });
+    updateLocalTable('Expenses', updatedExpenses);
     
     await sendAction('INSERT', { table: 'Expenses', data: newExpense });
     
@@ -569,59 +715,83 @@ export const useDataStore = create<DataStore>((set, get) => ({
           created_by: currentProf?.id || '',
           created_at: new Date().toISOString()
         };
-        await sendAction('INSERT', { table: 'Inventory_Movements', data: mv });
         
         const newStock = Math.max(0, Number(prod.current_stock) - expenseData.quantity);
+        const updatedProducts = get().products.map(p => p.id === prod.id ? { ...p, current_stock: newStock } : p);
+        const updatedMovements = [mv, ...get().inventoryMovements];
+        set({ products: updatedProducts, inventoryMovements: updatedMovements });
+        updateLocalTable('Products', updatedProducts);
+        updateLocalTable('Inventory_Movements', updatedMovements);
+
+        await sendAction('INSERT', { table: 'Inventory_Movements', data: mv });
         await sendAction('UPDATE', { table: 'Products', id: prod.id, data: { current_stock: newStock, updated_at: new Date().toISOString() }});
       }
     }
-    
-    await get().fetchInitialData();
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   addServiceCategory: async (name, description) => {
     const newCat = { id: generateId('scat'), name, description: description || '', is_active: true, created_at: new Date().toISOString() };
+    const updated = [...get().serviceCategories, newCat as any];
+    set({ serviceCategories: updated });
+    updateLocalTable('Service_Categories', updated);
     await sendAction('INSERT', { table: 'Service_Categories', data: newCat });
-    set({ serviceCategories: [...get().serviceCategories, newCat as any] });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   addProductCategory: async (name, description) => {
     const newCat = { id: generateId('pcat'), name, description: description || '', is_active: true };
+    const updated = [...get().productCategories, newCat as any];
+    set({ productCategories: updated });
+    updateLocalTable('Product_Categories', updated);
     await sendAction('INSERT', { table: 'Product_Categories', data: newCat });
-    set({ productCategories: [...get().productCategories, newCat as any] });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   addExpenseCategory: async (name) => {
     const newCat = { id: generateId('ecat'), name, is_active: true };
+    const updated = [...get().expenseCategories, newCat as any];
+    set({ expenseCategories: updated });
+    updateLocalTable('Expense_Categories', updated);
     await sendAction('INSERT', { table: 'Expense_Categories', data: newCat });
-    set({ expenseCategories: [...get().expenseCategories, newCat as any] });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   deleteServiceCategory: async (id) => {
+    const updated = get().serviceCategories.filter((c) => c.id !== id);
+    set({ serviceCategories: updated });
+    updateLocalTable('Service_Categories', updated);
     await sendAction('DELETE', { table: 'Service_Categories', id });
-    set({ serviceCategories: get().serviceCategories.filter((c) => c.id !== id) });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   deleteProductCategory: async (id) => {
+    const updated = get().productCategories.filter((c) => c.id !== id);
+    set({ productCategories: updated });
+    updateLocalTable('Product_Categories', updated);
     await sendAction('DELETE', { table: 'Product_Categories', id });
-    set({ productCategories: get().productCategories.filter((c) => c.id !== id) });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   deleteExpenseCategory: async (id) => {
+    const updated = get().expenseCategories.filter((c) => c.id !== id);
+    set({ expenseCategories: updated });
+    updateLocalTable('Expense_Categories', updated);
     await sendAction('DELETE', { table: 'Expense_Categories', id });
-    set({ expenseCategories: get().expenseCategories.filter((c) => c.id !== id) });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   claimVipReward: async (vehicleId) => {
     const target = get().vehicles.find((v) => v.id === vehicleId);
     if (!target) return;
     const currentVisits = target.visits_count || 0;
+    const updatedVehicles = get().vehicles.map((v) =>
+      v.id === vehicleId ? { ...v, last_rewarded_visit_count: currentVisits } : v
+    );
+    set({ vehicles: updatedVehicles });
+    updateLocalTable('Vehicles', updatedVehicles);
     await sendAction('UPDATE', { table: 'Vehicles', id: vehicleId, data: { last_rewarded_visit_count: currentVisits } });
-    set({
-      vehicles: get().vehicles.map((v) =>
-        v.id === vehicleId ? { ...v, last_rewarded_visit_count: currentVisits } : v
-      ),
-    });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   addEmployee: async (profileData) => {
@@ -635,30 +805,38 @@ export const useDataStore = create<DataStore>((set, get) => ({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+    const updated = [newProfile, ...get().profiles];
+    set({ profiles: updated });
+    updateLocalTable('Profiles', updated);
     await sendAction('INSERT', { table: 'Profiles', data: newProfile });
-    set({ profiles: [newProfile, ...get().profiles] });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   updateEmployeeRole: async (id, role) => {
+    const updated = get().profiles.map((p) => (p.id === id ? { ...p, role } : p));
+    set({ profiles: updated });
+    updateLocalTable('Profiles', updated);
     await sendAction('UPDATE', { table: 'Profiles', id, data: { role, updated_at: new Date().toISOString() } });
-    set({
-      profiles: get().profiles.map((p) => (p.id === id ? { ...p, role } : p))
-    });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   toggleEmployeeActive: async (id) => {
     const target = get().profiles.find((p) => p.id === id);
     if (!target) return;
     const nextState = !target.is_active;
+    const updated = get().profiles.map((p) => (p.id === id ? { ...p, is_active: nextState } : p));
+    set({ profiles: updated });
+    updateLocalTable('Profiles', updated);
     await sendAction('UPDATE', { table: 'Profiles', id, data: { is_active: nextState, updated_at: new Date().toISOString() } });
-    set({
-      profiles: get().profiles.map((p) => (p.id === id ? { ...p, is_active: nextState } : p))
-    });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   deleteEmployee: async (id) => {
+    const updated = get().profiles.filter((p) => p.id !== id);
+    set({ profiles: updated });
+    updateLocalTable('Profiles', updated);
     await sendAction('DELETE', { table: 'Profiles', id });
-    set({ profiles: get().profiles.filter((p) => p.id !== id) });
+    set({ pendingSyncCount: getSyncQueueCount() });
   },
 
   searchVehicles: (query) => {

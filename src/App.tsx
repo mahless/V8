@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useUIStore } from './stores/useUIStore';
 import { useDataStore } from './stores/useDataStore';
 import { Layout } from './components/layout/Layout';
+import { OfflineIndicator } from './components/ui/OfflineIndicator';
 
 // Lazy loading view components to optimize initial JS bundle size and fast loading on low-end devices
 const DashboardView = lazy(() => import('./features/dashboard/DashboardView').then(m => ({ default: m.DashboardView })));
@@ -27,7 +28,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   const { activeTab, setActiveTab } = useUIStore();
-  const { fetchInitialData, currentRole, currentProfile, profiles } = useDataStore();
+  const { fetchInitialData, currentRole, currentProfile, profiles, updateOnlineStatus, syncPendingData } = useDataStore();
 
   useEffect(() => {
     fetchInitialData();
@@ -47,8 +48,26 @@ export default function App() {
     };
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchInitialData]);
+
+    // Online/Offline Event Listeners
+    const handleOnline = () => {
+      updateOnlineStatus(true);
+      // Auto-sync when coming back online
+      syncPendingData();
+    };
+    const handleOffline = () => {
+      updateOnlineStatus(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [fetchInitialData, updateOnlineStatus, syncPendingData]);
 
   // Enforce role guard: if user is employee and on a manager-only tab, fallback to POS
   const isManagerOnlyTab = ['services', 'inventory', 'expenses', 'reports', 'settings'].includes(activeTab);
@@ -107,6 +126,7 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <OfflineIndicator />
       <Layout>
         <Suspense fallback={
           <div className="flex items-center justify-center min-h-[400px] p-8">
