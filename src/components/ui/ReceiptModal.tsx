@@ -12,7 +12,7 @@ export const ReceiptModal: React.FC = () => {
 
   const selectedSale = sales.find((s) => s.id === activeReceiptSaleId) || sales[0];
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const receipt = document.getElementById('thermal-receipt');
     if (!receipt) return;
     
@@ -29,10 +29,28 @@ export const ReceiptModal: React.FC = () => {
     const iframeDoc = iframe.contentWindow?.document;
     if (!iframeDoc) return;
     
-    // Copy all stylesheets from parent to preserve Tailwind
-    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map((tag) => tag.outerHTML)
-      .join('\n');
+    // Safely gather ALL CSS styles (Tailwind, etc) 
+    let cssText = '';
+    
+    // 1. Fetch from external stylesheets (Service worker handles this offline)
+    const linkElements = document.querySelectorAll('link[rel="stylesheet"]');
+    for (let i = 0; i < linkElements.length; i++) {
+      try {
+        const href = (linkElements[i] as HTMLLinkElement).href;
+        if (href) {
+          const res = await fetch(href);
+          cssText += await res.text() + '\n';
+        }
+      } catch (e) {
+        console.warn('Failed to fetch stylesheet for print', e);
+      }
+    }
+
+    // 2. Grab any inline style tags
+    const styleElements = document.querySelectorAll('style');
+    for (let i = 0; i < styleElements.length; i++) {
+      cssText += styleElements[i].innerHTML + '\n';
+    }
       
     iframeDoc.write(`
       <!DOCTYPE html>
@@ -40,7 +58,9 @@ export const ReceiptModal: React.FC = () => {
         <head>
           <meta charset="utf-8" />
           <title>فاتورة</title>
-          ${styles}
+          <style>
+            ${cssText}
+          </style>
           <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
           <style id="base-print-style">
             html, body {
@@ -144,18 +164,26 @@ export const ReceiptModal: React.FC = () => {
 
           {/* Items Table */}
           <div className="py-2 border-t border-b border-dashed border-slate-300 space-y-1.5">
-            <div className="flex justify-between font-bold text-[11px] text-slate-900 pb-1 border-b border-slate-100">
-              <span>الخدمة / المنتج</span>
-              <span>السعر</span>
-            </div>
-            {selectedSale.items?.map((item, idx) => (
-              <div key={idx} className="flex justify-between text-[11px] text-slate-800">
-                <span>
-                  {item.item_name_snapshot} × {item.quantity}
-                </span>
-                <span className="font-bold font-mono">{item.total} ج.م</span>
-              </div>
-            ))}
+            <table className="w-full text-right text-[11px] border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="py-1 font-bold text-slate-900 w-3/4" colSpan={2}>الخدمة / المنتج (العدد)</th>
+                  <th className="py-1 font-bold text-slate-900 w-1/4 text-left">السعر</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedSale.items?.map((item, idx) => (
+                  <tr key={idx} className="border-b border-slate-100/50 last:border-0 text-slate-800">
+                    <td className="py-1.5" colSpan={2}>
+                      {item.item_name_snapshot} <span className="text-slate-500 mr-1 font-mono text-[10px]">×{item.quantity}</span>
+                    </td>
+                    <td className="py-1.5 text-left font-bold font-mono text-slate-900">
+                      {item.total}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {/* Totals & Payment */}

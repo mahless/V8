@@ -12,7 +12,7 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         devOptions: {
-          enabled: true, // Enable PWA in dev mode for testing offline
+          enabled: false, // Disabled in dev to prevent stale SW cache issues; only active in production builds
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}'],
